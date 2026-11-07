@@ -55,6 +55,43 @@ node --test
 
 The microphone button records up to eight seconds, stops after about 1.2 seconds of silence, resamples the audio to mono 16 kHz PCM WAV, and sends it to the local `/api/stt` endpoint. Recognized Hinglish, English, or Devanagari commands are matched against a small safe command list, applied through the app's existing player and storage functions, and answered through `/api/tts`. Unsupported requests are not executed. Run the Python server rather than opening the HTML file directly.
 
+The mic can be dragged and its position is saved in browser storage. Press `V` to start or stop a recording when you are not typing. The “What can I say?” panel also runs typed commands through the same parser and actions, so it remains useful if the mic or network is unavailable. While recording and speaking, the video volume is lowered to 15% of its saved level and restored afterward. The spoken response can fail offline, but the typed command still runs locally.
+
+### Recognition settings comparison
+
+`server.py` currently uses profile A. No real voice samples were supplied for this project, so these profiles have not been compared and no accuracy winner is claimed. The earlier credential check used generated speech; that does not measure recognition of the user's own Hinglish voice.
+
+| Profile | `language_code` | `format` | Result |
+| --- | --- | --- | --- |
+| A (current default) | `indic-auto` | `transliterate` | Not tested with real voice samples |
+| B | `hi-IN,en-IN` | `transliterate` | Not tested with real voice samples |
+| C | `hi-IN,en-IN` | `codemix` | Not tested with real voice samples |
+
+### Voice command checklist
+
+Try each phrase with a video loaded where required. The phrases below are examples; playlist names should match your own collection.
+
+| Action | Hinglish | English |
+| --- | --- | --- |
+| Play or resume | `chalao` | `play the video` |
+| Pause | `roko` | `pause the video` |
+| Next / previous | `agla video chalao` / `pichla video` | `next video` / `previous video` |
+| Volume | `awaaz badhao`, `awaaz kam karo`, `volume fifty karo` | `volume up`, `volume down`, `volume fifty` |
+| Seek | `tees second aage`, `das second peeche` | `30 seconds forward`, `10 seconds backward` |
+| Add current video | `is video ko Music mein daal do` | `add this video to Music` |
+| Tag current video | `tag karo study` | `add tag study` |
+| Create / open playlist | `playlist banao naam rakho Exam Prep`, `Exam Prep playlist kholo` | `create playlist called Exam Prep`, `open playlist Exam Prep` |
+| Sort / favorite | `playlist sort karo by naam`, `favourite karo` | `sort playlist by title`, `favorite this video` |
+
+Also check a noisy room, deny microphone access (then use the typed box), disconnect the network (then use the typed box), name a playlist that does not exist, and try an unsupported request. The app should explain failures, suggest close playlist names, and never delete data by voice.
+
+### Verification status
+
+- `node --test`: 21 tests pass, including 56 command phrases and safe action checks.
+- Python syntax check and local Flask page/API smoke check passed earlier in development.
+- The user reported that the real Gnani credential check succeeded. It was not repeated in this pass to avoid another paid API call.
+- The local browser check confirmed the Help panel and typed “open playlists” command navigate correctly. Real microphone recognition and speech playback were not exercised in this pass; no real voice samples were supplied for profile comparison.
+
 ## Main files
 
 - `server.py` serves the app, protects the API key, and proxies the two Gnani calls.
@@ -65,8 +102,9 @@ The microphone button records up to eight seconds, stops after about 1.2 seconds
 - `js/store.js` manages saved videos and playlists in browser storage.
 - `js/player.js` wraps the embedded video player and keeps its existing public controls.
 - `js/views/` draws the Home, playlist, playlist detail, and search screens.
+- `js/voice/recorder.js` captures and converts a short mic command to WAV; `gnani-client.js` calls the local speech endpoints; `intents.js` parses phrases; `actions.js` runs safe app actions; `responses.js` keeps spoken replies together; and `voice-ui.js` draws the mic, help, and typed fallback.
 - `tests/` covers pure ID parsing, routes, searching, list helpers, and store behavior with in-memory storage.
 
 ## Progress
 
-The backend, microphone round trip, and safe voice command actions are in place. The mic can be dragged, its position is remembered, `V` starts recording when you are not typing, and the help panel accepts typed commands through the same parser. Player volume is temporarily lowered during recording and speech, then restored to the current saved setting.
+The backend, microphone round trip, safe voice commands, draggable mic, typed fallback, keyboard toggle, and voice help are in place. The project submission draft and manual verification checklist are in `SUBMISSION.md` and this README.
