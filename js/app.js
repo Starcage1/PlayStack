@@ -84,7 +84,7 @@ function render() {
   const warning = storageWarning ? `<p class="storage-warning">${escapeHtml(storageWarning)}</p>` : "";
   let content = "";
   if (route.name === "home") content = renderHome({ videos: allVideos(), order: homeState.order, filter: homeState.filter, page: homeState.page });
-  else if (route.name === "favorites") content = renderHome({ videos: allVideos(), order: homeState.order, filter: "Favs", page: homeState.page });
+  else if (route.name === "favorites") content = renderHome({ videos: allVideos().filter((video) => video.favorite), order: homeState.order, filter: homeState.filter, page: homeState.page, title: "Favorites" });
   else if (route.name === "playlists") content = renderPlaylists(store.getPlaylists(), allVideos(), playlistState);
   else {
     if (detailState.id !== route.id) detailState = { id: route.id, query: "", filter: "", sort: "manual", page: 1 };
@@ -97,7 +97,8 @@ function render() {
   applySidebarState();
   if (route.name === "home" || route.name === "favorites") {
     const chipHost = app.querySelector("#homeChips");
-    if (chipHost) chipHost.innerHTML = renderHomeChips(allVideos(), route.name === "favorites" ? "Favs" : homeState.filter);
+    if (chipHost) chipHost.innerHTML = renderHomeChips(route.name === "favorites" ? allVideos().filter((video) => video.favorite) : allVideos(), homeState.filter);
+    setupChipScroller();
   }
   if (playback.currentId) updatePlayerLabels();
 }
@@ -123,6 +124,20 @@ function applySidebarState() {
   document.body.classList.toggle("sidebar-expanded", !sidebarCollapsed);
   document.body.classList.toggle("sidebar-open", sidebarDrawerOpen);
   sidebarScrim.hidden = !sidebarDrawerOpen;
+}
+
+// Enable chip arrows only when the row has content outside its viewport.
+function setupChipScroller() {
+  const row = app.querySelector("#homeChips");
+  if (!row) return;
+  const update = () => {
+    const overflow = row.scrollWidth > row.clientWidth + 2;
+    app.querySelectorAll(".chip-arrow[data-action^='chips-']").forEach((button) => { button.hidden = !overflow; });
+    app.querySelector(".chip-edge-left")?.classList.toggle("visible", row.scrollLeft > 0);
+    app.querySelector(".chip-edge-right")?.classList.toggle("visible", row.scrollLeft + row.clientWidth < row.scrollWidth - 2);
+  };
+  row.addEventListener("scroll", update, { passive: true });
+  window.requestAnimationFrame(update);
 }
 
 // Keep the same iframe and shell, changing only its CSS mode.
@@ -390,7 +405,8 @@ document.addEventListener("click", (event) => {
   else if (action === "sidebar-show-more") { sidebarShowAll = !sidebarShowAll; render(); }
   else if (action === "open-add-video") openAddVideo();
   else if (action === "shuffle") { homeState.order = shuffle(allVideos().map((video) => video.id)); homeState.page = 1; render(); }
-  else if (action === "home-filter") { homeState.filter = homeState.filter === filter ? "" : filter; homeState.page = 1; render(); }
+  else if (action === "home-filter") { const selected = filter === "All" ? "" : filter; homeState.filter = homeState.filter === selected ? "" : selected; homeState.page = 1; render(); }
+  else if (action === "chips-left" || action === "chips-right") app.querySelector("#homeChips")?.scrollBy({ left: action === "chips-left" ? -260 : 260, behavior: "smooth" });
   else if (action === "clear-home-filter") { homeState.filter = ""; homeState.page = 1; render(); }
   else if (action === "home-page") { homeState.page = Number(page); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
   else if (action === "open-search") openSearch();
@@ -565,10 +581,14 @@ document.addEventListener("keydown", (event) => {
 
 // Keep the thumbnail box in place when a video has no available thumbnail.
 document.addEventListener("error", (event) => {
-  if (event.target instanceof HTMLImageElement && (event.target.classList.contains("thumb") || event.target.classList.contains("playlist-cover"))) {
+  if (event.target instanceof HTMLImageElement && (event.target.classList.contains("thumb-image") || event.target.classList.contains("playlist-cover"))) {
     event.target.removeAttribute("src");
     event.target.classList.add("thumbnail-missing");
+    event.target.closest(".thumb-frame")?.classList.add("thumbnail-failed");
   }
+}, true);
+document.addEventListener("load", (event) => {
+  if (event.target instanceof HTMLImageElement && event.target.classList.contains("thumb-image")) event.target.classList.add("is-loaded");
 }, true);
 
 // Initial route and short playback polling keep the app responsive.

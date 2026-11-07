@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { filterAndSortVideos, paginate, shuffle, sortPlaylists } from "../js/utils.js";
+import { filterAndSortVideos, paginate, shuffle, sortPlaylists, timeAgo } from "../js/utils.js";
 
 const videos = [
   { id: "a", title: "Zebra", author: "One", tags: ["Music"], addedAt: "2026-01-01" },
@@ -30,4 +30,13 @@ test("playlist sort orders by name or video count", () => {
   const playlists = [{ name: "Z", videoIds: ["1"] }, { name: "A", videoIds: ["1", "2"] }];
   assert.deepEqual(sortPlaylists(playlists, "name").map((item) => item.name), ["A", "Z"]);
   assert.deepEqual(sortPlaylists(playlists, "count").map((item) => item.name), ["A", "Z"]);
+});
+
+test("time ago labels stay short at common intervals", () => {
+  const now = Date.parse("2026-11-07T12:00:00Z");
+  assert.equal(timeAgo(now - 25_000, now), "just now");
+  assert.equal(timeAgo(now - 5 * 60_000, now), "5 minutes ago");
+  assert.equal(timeAgo(now - 2 * 24 * 60 * 60_000, now), "2 days ago");
+  assert.equal(timeAgo(now - 21 * 24 * 60 * 60_000, now), "3 weeks ago");
+  assert.equal(timeAgo(now - 366 * 24 * 60 * 60_000, now), "1 year ago");
 });
