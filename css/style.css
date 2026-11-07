@@ -193,6 +193,17 @@ body.has-mini-player:not(.watch-route) .toast-region { bottom: 280px; }
 .storage-warning { padding: 10px 12px; margin: 12px 0; border: 1px solid #b17c31; border-radius: 10px; color: #ffe1a7; background: #392b16; }
 .environment-badge { position: fixed; z-index: 100; top: calc(var(--topbar-h) + 10px); right: 16px; padding: 6px 10px; border: 1px solid #e4b538; border-radius: var(--radius-pill); color: #211a07; background: #f2c94c; font-size: 11px; font-weight: 800; letter-spacing: .06em; }
 .environment-badge[hidden] { display: none; }
+.voice-dock { position: fixed; z-index: 79; right: 24px; bottom: 24px; display: grid; justify-items: end; gap: 10px; }
+.voice-mic { width: 58px; min-width: 58px; height: 58px; min-height: 58px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--accent); box-shadow: 0 8px 24px #0008; }
+.voice-mic:hover { background: var(--accent-hover); }
+.voice-mic:disabled { opacity: 1; }
+.voice-mic svg { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.voice-dock[data-state="listening"] .voice-mic { animation: voice-pulse 1s ease-in-out infinite alternate; }
+.voice-dock[data-state="thinking"] .voice-mic, .voice-dock[data-state="speaking"] .voice-mic { background: #6150a5; }
+.voice-dock[data-state="error"] .voice-mic { background: var(--danger); }
+.voice-status { max-width: min(340px, calc(100vw - 40px)); padding: 9px 14px; margin: 0; border: 1px solid #414141; border-radius: var(--radius-pill); background: #252525; box-shadow: 0 8px 25px #0008; font-size: 13px; }
+.voice-status[hidden] { display: none; }
+@keyframes voice-pulse { from { box-shadow: 0 0 0 0 #927df455, 0 8px 24px #0008; } to { box-shadow: 0 0 0 10px #927df400, 0 8px 24px #0008; } }
 
 /* The YouTube iframe stays in this shell while the route changes. */
 .player-shell { position: fixed; z-index: 70; left: calc(var(--sidebar-w) + 24px); bottom: 20px; width: 356px; color: white; border: 1px solid #414141; border-radius: 13px; overflow: hidden; background: #181818; box-shadow: 0 14px 46px #000b; transition: width 150ms, height 150ms, inset 150ms, border-radius 150ms; }
@@ -254,12 +265,14 @@ body.has-mini-player:not(.watch-route) .toast-region { bottom: 280px; }
   .main-content { margin-left: 0; padding: calc(var(--topbar-h) + 20px) 16px 70px; }
   body.has-mini-player .main-content { padding-bottom: 320px; }
   body.has-mini-player:not(.watch-route) .toast-region { bottom: 338px; }
+  body.has-mini-player:not(.watch-route) .voice-dock { bottom: 340px; }
   .player-shell.mini { left: 0; right: 0; bottom: 0; width: 100%; border-radius: 12px 12px 0 0; }
   .player-shell.mini .player-viewport { height: max(200px, 56.25vw); }
   .player-shell.expanded { inset: var(--topbar-h) 0 0; border-radius: 0; }
   .video-grid { grid-template-columns: 1fr; }
   .playlist-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+body.watch-route .voice-dock { display: none; }
 @media (max-width: 620px) { .screen-heading { align-items: flex-start; } .topbar-add { padding-inline: 12px; } }
 @media (hover: none) { .video-menu { opacity: 1; } }
 @media (max-width: 899px) {

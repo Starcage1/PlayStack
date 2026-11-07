@@ -7,6 +7,7 @@ import { formatTime, renderHome, renderHomeChips } from "./views/home.js";
 import { renderPlaylists } from "./views/playlists.js";
 import { renderPlaylistDetail } from "./views/playlist-detail.js";
 import { renderSearchPage } from "./views/search-results.js";
+import { initVoiceUI } from "./voice/voice-ui.js";
 
 const app = document.querySelector("#app");
 const sidebarContent = document.querySelector("#sidebarContent");
@@ -660,5 +661,11 @@ document.addEventListener("load", (event) => {
 }, true);
 
 // Initial route and short playback polling keep the app responsive.
+initVoiceUI({
+  getKeyterms: () => [...new Set([
+    ...store.getPlaylists().map((playlist) => playlist.name),
+    ...allVideos().flatMap((video) => video.tags || [])
+  ])].slice(0, 200)
+});
 watchRoute(render);
 window.setInterval(updatePlayerControls, 250);

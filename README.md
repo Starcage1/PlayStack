@@ -51,6 +51,10 @@ The app itself has no JavaScript build step or npm dependencies. With Node.js in
 node --test
 ```
 
+## Voice slice
+
+The microphone button records up to eight seconds, stops after about 1.2 seconds of silence, resamples the audio to mono 16 kHz PCM WAV, and sends it to the local `/api/stt` endpoint. The first voice slice displays the recognized text and speaks it back through `/api/tts`; voice commands are not connected to app actions yet. Run the Python server rather than opening the HTML file directly.
+
 ## Main files
 
 - `server.py` serves the app, protects the API key, and proxies the two Gnani calls.
@@ -63,6 +67,6 @@ node --test
 - `js/views/` draws the Home, playlist, playlist detail, and search screens.
 - `tests/` covers pure ID parsing, routes, searching, list helpers, and store behavior with in-memory storage.
 
-## Current phase boundary
+## Progress
 
-This phase prepares the safe backend and verifies the Gnani account. It does not yet add a microphone, voice command parser, spoken replies, or voice controls. Run `check_gnani.py` and confirm its result before the next phase.
+The backend and basic microphone round trip are in place. The next step connects recognized speech to safe app commands; the current voice slice only speaks back what it heard.
