@@ -3,7 +3,9 @@ export async function transcribe(blob, keyterms = []) {
   const form = new FormData();
   form.append("audio_file", blob, "voice-command.wav");
   form.append("keyterms", JSON.stringify(keyterms.slice(0, 200)));
-  const response = await fetch("/api/stt", { method: "POST", body: form });
+  let response;
+  try { response = await fetch("/api/stt", { method: "POST", body: form }); }
+  catch (_) { throw new Error("Voice service is offline. Start the local app server and check your connection."); }
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || "Speech recognition failed. Try again.");
   return {
@@ -13,11 +15,14 @@ export async function transcribe(blob, keyterms = []) {
 }
 
 export async function speak(text) {
-  const response = await fetch("/api/tts", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text })
-  });
+  let response;
+  try {
+    response = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    });
+  } catch (_) { throw new Error("Voice reply service is offline. Start the local app server and check your connection."); }
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     throw new Error(result.error || "Could not speak the reply.");

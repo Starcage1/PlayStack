@@ -46,6 +46,7 @@ let sidebarShowAll = false;
 let sidebarDrawerOpen = false;
 let watchNavigationPushed = false;
 let watchLibraryOrder = [];
+let voiceUI = null;
 
 // Use small original line icons instead of a third-party icon package.
 const iconPaths = {
@@ -684,8 +685,14 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.key === " " && !typing && !event.target.closest("button, a, summary, [data-video-id], [data-playlist-open]") && !playerShell.classList.contains("is-hidden")) { event.preventDefault(); if (yt.getState() === (window.YT?.PlayerState?.PLAYING ?? 1)) yt.pause(); else yt.play(); }
   if (event.key === "/" && !typing && !document.querySelector("dialog[open]")) { event.preventDefault(); if (window.innerWidth < 800) document.body.classList.add("mobile-search-open"); globalSearchInput.focus(); }
+  if (event.key.toLocaleLowerCase() === "v" && !typing && !document.querySelector("dialog[open]") && !document.body.classList.contains("watch-route")) {
+    event.preventDefault();
+    voiceUI?.start();
+  }
   if (event.key === "Escape") {
     if (document.querySelector("dialog[open]")) return;
+    const voiceHelp = document.querySelector(".voice-help:not([hidden])");
+    if (voiceHelp) { voiceHelp.hidden = true; return; }
     if (document.activeElement === globalSearchInput || document.body.classList.contains("mobile-search-open")) {
       globalSearchInput.value = ""; clearGlobalSearch.hidden = true; globalSearchInput.blur(); document.body.classList.remove("mobile-search-open");
     }
@@ -707,7 +714,7 @@ document.addEventListener("load", (event) => {
 
 // Initial route and short playback polling keep the app responsive.
 const voiceActions = createVoiceActionRunner();
-initVoiceUI({
+voiceUI = initVoiceUI({
   getKeyterms: () => [...new Set([
     ...store.getPlaylists().map((playlist) => playlist.name),
     ...allVideos().flatMap((video) => video.tags || [])
@@ -721,7 +728,9 @@ initVoiceUI({
     const reply = responseFor(parsed, result);
     toast(reply);
     return reply;
-  }
+  },
+  getVolume: () => store.getState().settings.volume,
+  setPlaybackVolume: (value) => yt.setVolume(value)
 });
 watchRoute(render);
 window.setInterval(updatePlayerControls, 250);

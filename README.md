@@ -69,4 +69,4 @@ The microphone button records up to eight seconds, stops after about 1.2 seconds
 
 ## Progress
 
-The backend, microphone round trip, and safe voice command actions are in place. The next step polishes recording feedback, keyboard access, help, and volume ducking while recording or speaking.
+The backend, microphone round trip, and safe voice command actions are in place. The mic can be dragged, its position is remembered, `V` starts recording when you are not typing, and the help panel accepts typed commands through the same parser. Player volume is temporarily lowered during recording and speech, then restored to the current saved setting.
