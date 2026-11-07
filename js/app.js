@@ -6,11 +6,14 @@ import * as yt from "./player.js";
 import { formatTime, renderHome, renderHomeChips } from "./views/home.js";
 import { renderPlaylists } from "./views/playlists.js";
 import { renderPlaylistDetail } from "./views/playlist-detail.js";
-import { searchLibrary } from "./search.js";
+import { renderSearchPage } from "./views/search-results.js";
 
 const app = document.querySelector("#app");
 const sidebarContent = document.querySelector("#sidebarContent");
 const sidebarScrim = document.querySelector("#sidebarScrim");
+const globalSearchForm = document.querySelector("#globalSearchForm");
+const globalSearchInput = document.querySelector("#globalSearch");
+const clearGlobalSearch = document.querySelector("#clearGlobalSearch");
 const playerShell = document.querySelector("#playerShell");
 const toastRegion = document.querySelector("#toastRegion");
 const addDialog = document.querySelector("#addVideoDialog");
@@ -27,7 +30,6 @@ const playback = { queue: [], index: 0, currentId: "", autoplayPlaylistId: null,
 let toastTimer = 0;
 let searchTimer = 0;
 let pendingVideo = null;
-let searchOverlay;
 let storageWarning = "";
 let youtubeApiReady = false;
 let playerCreated = false;
@@ -90,6 +92,7 @@ function render() {
   else if (route.name === "favorites") content = renderHome({ videos: allVideos().filter((video) => video.favorite), order: homeState.order, filter: homeState.filter, page: homeState.page, title: "Favorites" });
   else if (route.name === "playlists") content = renderPlaylists(store.getPlaylists(), allVideos(), playlistState);
   else if (route.name === "watch") content = playback.currentId ? "" : `<div class="empty-state"><h2>Nothing is playing</h2><p>Choose a video from Home or a playlist.</p><button data-action="nav-home">Go to Home</button></div>`;
+  else if (route.name === "search") content = renderSearchPage(allVideos(), store.getPlaylists(), route.query);
   else {
     if (detailState.id !== route.id) detailState = { id: route.id, query: "", filter: "", sort: "manual", page: 1 };
     const playlist = store.getPlaylist(route.id);
@@ -97,6 +100,8 @@ function render() {
   }
   app.innerHTML = `${warning}<main id="routeView">${content}</main>`;
   app.classList.toggle("watch-route", route.name === "watch");
+  document.body.classList.toggle("watch-route", route.name === "watch");
+  if (route.name === "search") { globalSearchInput.value = route.query; clearGlobalSearch.hidden = !route.query; }
   renderSidebar(route);
   if (window.innerWidth < 800) sidebarDrawerOpen = false;
   applySidebarState();
@@ -476,8 +481,11 @@ document.addEventListener("click", (event) => {
   else if (action === "chips-left" || action === "chips-right") app.querySelector("#homeChips")?.scrollBy({ left: action === "chips-left" ? -260 : 260, behavior: "smooth" });
   else if (action === "clear-home-filter") { homeState.filter = ""; homeState.page = 1; render(); }
   else if (action === "home-page") { homeState.page = Number(page); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
-  else if (action === "open-search") openSearch();
-  else if (action === "close-search") closeSearch();
+  else if (action === "toggle-mobile-search") {
+    document.body.classList.toggle("mobile-search-open");
+    if (document.body.classList.contains("mobile-search-open")) globalSearchInput.focus();
+    else globalSearchInput.blur();
+  }
   else if (action === "close-dialog") actionButton.closest("dialog")?.close();
   else if (action === "expand-player") setPlayerMode("expanded");
   else if (action === "minimize-player") setPlayerMode("mini");
@@ -511,32 +519,22 @@ document.addEventListener("click", (event) => {
   else if (action === "detail-page") { detailState.page = Number(page); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
   else if (action === "add-to-playlist") openMembershipDialog(id);
   else if (action === "edit-tags") openTagsDialog(id);
-  else if (action === "search-play-video") { closeSearch(); playVideo(id, [id]); }
-  else if (action === "search-open-playlist") { closeSearch(); navigate({ name: "playlist", id }); }
+  else if (action === "search-play-video") playVideo(id, [id]);
+  else if (action === "search-open-playlist") navigate({ name: "playlist", id });
   else if (action === "new-playlist-inline") { const videoId = membershipVideoId; document.querySelector("#membershipDialog").close(); openPlaylistDialog({ videoId, returnTo: "membership" }); }
   else if (action === "new-playlist-from-add") { document.querySelector("#addVideoDialog").close(); openPlaylistDialog({ returnTo: "add-video" }); }
 });
 
-// The global search surface is completed in its product phase.
-function openSearch() {
-  searchOverlay = document.querySelector("#searchOverlay");
-  searchOverlay.hidden = false;
-  const input = document.querySelector("#globalSearch");
-  input.value = "";
-  document.querySelector("#searchResults").innerHTML = `<p class="muted">Search by video title, channel, tag, or playlist name.</p>`;
-  input.focus();
-}
-function closeSearch() { if (searchOverlay) searchOverlay.hidden = true; }
-
-// Show video and playlist matches together as the user types.
-function renderSearchResults(query) {
-  const results = searchLibrary(allVideos(), store.getPlaylists(), query);
-  const videoRows = results.videos.map((video) => `<button class="search-result" data-action="search-play-video" data-id="${escapeHtml(video.id)}">${escapeHtml(video.title)}<small>${escapeHtml(video.author || "YouTube video")} · ${(video.tags || []).map(escapeHtml).join(", ")}</small></button>`).join("");
-  const playlistRows = results.playlists.map((playlist) => `<button class="search-result" data-action="search-open-playlist" data-id="${escapeHtml(playlist.id)}">${escapeHtml(playlist.name)}<small>${playlist.videoIds.length} ${playlist.videoIds.length === 1 ? "video" : "videos"}</small></button>`).join("");
-  document.querySelector("#searchResults").innerHTML = results.videos.length || results.playlists.length
-    ? `${videoRows ? `<section class="search-group"><h3>Videos</h3>${videoRows}</section>` : ""}${playlistRows ? `<section class="search-group"><h3>Playlists</h3>${playlistRows}</section>` : ""}`
-    : `<div class="empty-state"><h3>No results</h3><p>Try a different title, channel, tag, or playlist name.</p></div>`;
-}
+// Send a non-empty query to its own hash route.
+globalSearchForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const query = globalSearchInput.value.trim();
+  if (!query) { toast("Type something to search your vault."); globalSearchInput.focus(); return; }
+  document.body.classList.remove("mobile-search-open");
+  navigate({ name: "search", query });
+});
+globalSearchInput.addEventListener("input", () => { clearGlobalSearch.hidden = !globalSearchInput.value; });
+clearGlobalSearch.addEventListener("click", () => { globalSearchInput.value = ""; clearGlobalSearch.hidden = true; globalSearchInput.focus(); });
 
 // Wire the import preview and native dialog form.
 document.querySelector("#previewVideo").addEventListener("click", previewVideo);
@@ -576,11 +574,6 @@ document.addEventListener("input", (event) => {
     const cursor = event.target.selectionStart;
     clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => { render(); const input = document.querySelector("#playlistSearch"); input?.focus(); input?.setSelectionRange(cursor, cursor); }, 150);
-  }
-  if (event.target.id === "globalSearch") {
-    const query = event.target.value;
-    clearTimeout(searchTimer);
-    searchTimer = window.setTimeout(() => renderSearchResults(query), 150);
   }
 });
 document.addEventListener("click", (event) => {
@@ -644,10 +637,12 @@ document.addEventListener("keydown", (event) => {
     else if (playlistCard && !event.target.closest("button, summary, details")) { event.preventDefault(); navigate({ name: "playlist", id: playlistCard.dataset.playlistOpen }); }
   }
   if (event.key === " " && !typing && !event.target.closest("button, a, summary, [data-video-id], [data-playlist-open]") && !playerShell.classList.contains("is-hidden")) { event.preventDefault(); if (yt.getState() === (window.YT?.PlayerState?.PLAYING ?? 1)) yt.pause(); else yt.play(); }
-  if (event.key === "/" && !typing && !document.querySelector("dialog[open]")) { event.preventDefault(); openSearch(); }
+  if (event.key === "/" && !typing && !document.querySelector("dialog[open]")) { event.preventDefault(); if (window.innerWidth < 800) document.body.classList.add("mobile-search-open"); globalSearchInput.focus(); }
   if (event.key === "Escape") {
     if (document.querySelector("dialog[open]")) return;
-    if (searchOverlay && !searchOverlay.hidden) closeSearch();
+    if (document.activeElement === globalSearchInput || document.body.classList.contains("mobile-search-open")) {
+      globalSearchInput.value = ""; clearGlobalSearch.hidden = true; globalSearchInput.blur(); document.body.classList.remove("mobile-search-open");
+    }
     else if (playerShell.classList.contains("expanded")) setPlayerMode("mini");
   }
 });

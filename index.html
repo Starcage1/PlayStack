@@ -20,7 +20,13 @@
         <span>Video Vault</span>
       </a>
     </div>
-    <div class="topbar-search-slot"><button class="icon-button" data-action="open-search" aria-label="Search your vault" title="Search">⌕</button></div>
+    <form id="globalSearchForm" class="global-search-form" role="search">
+      <label class="sr-only" for="globalSearch">Search videos and playlists</label>
+      <input id="globalSearch" type="search" placeholder="Search videos and playlists" autocomplete="off">
+      <button id="clearGlobalSearch" type="button" aria-label="Clear search" title="Clear search" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      <button class="submit-search" type="submit" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg></button>
+    </form>
+    <button class="mobile-search-toggle icon-button" data-action="toggle-mobile-search" aria-label="Open search" title="Search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg></button>
     <button class="topbar-add" data-action="open-add-video">+ Add video</button>
   </header>
 
@@ -104,13 +110,6 @@
     </form>
   </dialog>
 
-  <div id="searchOverlay" class="search-overlay" hidden>
-    <div class="search-panel">
-      <div class="search-heading"><h2>Search your vault</h2><button class="icon-button" data-action="close-search" aria-label="Close search">×</button></div>
-      <input id="globalSearch" type="search" placeholder="Search videos, channels, tags, playlists…" autocomplete="off">
-      <div id="searchResults"></div>
-    </div>
-  </div>
   <div id="toastRegion" class="toast-region" aria-live="polite"></div>
 </body>
 </html>

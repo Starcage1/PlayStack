@@ -1,8 +1,8 @@
 # Video Vault
 
-Video Vault is a local-first app for collecting YouTube videos into playlists you curate. It has no recommendations, accounts, backend, downloads, voice feature, build step, or installed web packages. Videos play through YouTube's official embedded player.
+Video Vault is a personal library for videos you choose and playlists you curate. The interface uses an original stacked-card mark and hand-drawn inline SVG icons. Video Vault is not affiliated with YouTube; playback uses YouTube's embedded player.
 
-## Run the app
+## Run it
 
 Open a terminal in this folder and run:
 
@@ -10,9 +10,9 @@ Open a terminal in this folder and run:
 python -m http.server 8000 --bind 127.0.0.1
 ```
 
-Then open <http://127.0.0.1:8000/> in a browser. Keep the terminal open while using the app. You need an internet connection for YouTube playback and oEmbed details. If port 8000 is busy, use another port in both the command and the address, for example 8001.
+Then open <http://127.0.0.1:8000/>. Keep the terminal open while using the app. Internet access is needed for YouTube playback and video details. If port 8000 is busy, change `8000` in both places.
 
-## Run the tests
+## Tests
 
 With Node.js installed, run:
 
@@ -20,36 +20,38 @@ With Node.js installed, run:
 node --test
 ```
 
-The app itself does not need Node.js or npm; `package.json` only marks these files as ES modules and provides the test command. There are no npm dependencies.
+The app itself needs no Node.js, npm, framework, or installed packages. `package.json` only enables JavaScript modules and provides a test shortcut.
 
 ## Files
 
-- `index.html` contains the routed app mount, one persistent YouTube player shell, and native dialogs.
-- `css/style.css` defines the dark purple colors, spacing, cards, responsive layouts, dialogs, and mini/expanded player modes.
-- `js/app.js` connects screens, dialogs, keyboard shortcuts, storage, and player controls. It keeps the iframe outside the routed content so navigation does not restart playback.
-- `js/player.js` wraps YouTube's IFrame API. Its public `play`, `pause`, `seekTo`, `setVolume`, `getState`, `getTime`, and `getDuration` functions remain available on `window.VaultPlayer` and as ES module exports.
-- `js/store.js` owns the versioned local library and playlist operations. It receives storage as an argument and falls back to in-memory data with a visible warning if browser storage fails.
-- `js/router.js` parses and changes the `#/home`, `#/playlists`, and `#/playlist/<id>` routes.
-- `js/video-id.js` extracts a YouTube ID from watch, short, embed, Shorts, and bare-ID inputs.
-- `js/utils.js` contains pure shuffle, filtering, sorting, and pagination helpers.
-- `js/search.js` searches video titles, channels, tags, and playlist names without touching the page.
-- `js/config.js` holds storage and page-size settings.
-- `js/views/home.js` draws the Home feed and shared video cards.
-- `js/views/playlists.js` draws the playlist grid.
-- `js/views/playlist-detail.js` draws the playlist controls and video list.
-- `tests/` covers ID parsing, routing, search, pagination, sorting, persistence, deduplication, playlist membership, and delete/undo operations using in-memory storage.
+- `index.html` holds the top bar, navigation, one persistent player shell, and the native dialogs.
+- `css/tokens.css` defines the purple accent, dark palette, spacing, and shape sizes.
+- `css/style.css` styles the home feed, playlist screens, search results, player, dialogs, and responsive layouts.
+- `js/app.js` connects the screens, dialogs, shortcuts, persistent player, and user actions.
+- `js/router.js` reads and changes hash routes so browser Back works.
+- `js/player.js` wraps YouTube's IFrame API. Its `play`, `pause`, `seekTo`, `setVolume`, `getState`, `getTime`, and `getDuration` functions remain available.
+- `js/store.js` handles saved videos, playlists, and browser storage, with an in-memory fallback and visible warning.
+- `js/video-id.js` reads a video ID from YouTube links or a bare ID.
+- `js/utils.js` contains shuffle, list filtering, sorting, pagination, and `timeAgo` helpers.
+- `js/search.js` searches saved video and playlist details without page or browser APIs.
+- `js/config.js` contains page-size and storage settings.
+- `js/views/home.js` draws the video cards and Home chips.
+- `js/views/playlists.js` draws and sorts the playlist grid.
+- `js/views/playlist-detail.js` draws playlist controls and numbered video rows.
+- `js/views/search-results.js` groups matching videos and playlists on the search page.
+- `tests/` checks ID parsing, routes, search, list helpers, persistence, and playlist operations using in-memory storage.
 
-## Data and playback notes
+## Data and playback
 
-Library data is stored under `videovault:v1` in the browser's localStorage. It belongs to that browser profile on that device. Adding a video first tries YouTube oEmbed for its title and channel; if that request fails, the video can still be saved as “Untitled video” and filled in when it is played. Some owners disable embedding, and those videos cannot play in this app.
+The library is stored in browser `localStorage` under `videovault:v1`. Adding a video tries YouTube oEmbed for its title and channel; if that request is unavailable, the app still saves it and can fill in details when playback starts. Some videos cannot be embedded because their owners disabled embedding.
 
-The mini player remains visible during navigation and is not moved in the DOM. Playlist playback queues the full filtered and sorted playlist, including items on later pages. Autoplay Seq is on by default for each playlist and can be switched off in its detail view.
+The iframe is created once outside the routed content. On `#/watch`, the same player is expanded; after navigating away, it stays visible as a mini player and playback continues. Playlist playback uses the full filtered and sorted queue. Autoplay Seq is enabled by default on each playlist.
 
 ## Manual check
 
-1. Add a video by link, then add the same one again. Confirm it is not duplicated and can be added to a playlist.
-2. Create a playlist, add multiple videos, and open it.
-3. Play a video from the playlist and let it finish. Confirm Autoplay Seq plays the next item. Turn Autoplay Seq off and confirm playback stops at the end.
-4. Navigate between Home, Playlists, and a playlist while a video is playing. Confirm the video does not restart.
-5. Expand and minimize the player, then close the mini player.
-6. Search globally, try Favs/Recently added/tag chips, and reload to confirm data persists.
+1. Collapse the sidebar, reload, and confirm the choice remains saved. Try the drawer on a narrow screen.
+2. Scroll the Home chips with their arrows and hover or focus a video to reveal its menu.
+3. Play a video, press browser Back, and confirm it keeps playing in the mini player. Expand it again.
+4. Play all from a playlist and check the Up next list. Let a video end, then turn Autoplay Seq off and confirm it stops at the end.
+5. Search from the top bar and open a video or playlist result.
+6. Resize to phone, laptop, and desktop widths and check that the layout adapts.

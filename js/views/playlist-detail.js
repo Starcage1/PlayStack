@@ -5,7 +5,7 @@ import { formatTime } from "./home.js";
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 
 // Draw one compact row for a playlist video.
-function videoRow(video, number) {
+export function videoRow(video, number, { inPlaylist = true } = {}) {
   const duration = video.durationSec > 0 ? `<span class="duration-badge">${formatTime(video.durationSec)}</span>` : "";
   const tags = (video.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
   const hue = [...(video.author || "Video Vault")].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 360, 0);
@@ -15,7 +15,7 @@ function videoRow(video, number) {
     <div class="row-thumb thumb-frame"><div class="thumb-skeleton" aria-hidden="true"></div><img class="thumb-image" loading="lazy" src="https://i.ytimg.com/vi/${encodeURIComponent(video.id)}/hqdefault.jpg" alt="">${duration}</div>
     <div class="row-copy"><h3>${escapeHtml(video.title)}</h3><div class="row-channel"><span class="channel-avatar small-avatar" style="--avatar-hue:${hue}" aria-hidden="true">${initial}</span><span>${escapeHtml(video.author || "YouTube")}</span></div><p>Added ${timeAgo(video.addedAt)}</p><div class="tag-list">${tags}</div></div>
     <div class="row-actions"><button class="favorite-button" data-action="favorite" data-id="${escapeHtml(video.id)}" aria-label="${video.favorite ? "Remove from" : "Add to"} favorites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 8.8c0 5.2-8.8 11-8.8 11S3.2 14 3.2 8.8a4.3 4.3 0 0 1 8.8-1 4.3 4.3 0 0 1 8.8 1z" ${video.favorite ? "fill=\"currentColor\"" : ""}/></svg></button>
-      <details class="video-menu"><summary aria-label="Video options"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></summary><div class="menu-items"><button data-action="add-to-playlist" data-id="${escapeHtml(video.id)}">Add to playlist</button><button data-action="edit-tags" data-id="${escapeHtml(video.id)}">Edit tags</button><button data-action="remove-membership" data-id="${escapeHtml(video.id)}">Remove from playlist</button><button data-action="delete-video" data-id="${escapeHtml(video.id)}">Delete from library</button></div></details>
+      <details class="video-menu"><summary aria-label="Video options"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></summary><div class="menu-items"><button data-action="add-to-playlist" data-id="${escapeHtml(video.id)}">Add to playlist</button><button data-action="edit-tags" data-id="${escapeHtml(video.id)}">Edit tags</button>${inPlaylist ? `<button data-action="remove-membership" data-id="${escapeHtml(video.id)}">Remove from playlist</button>` : ""}<button data-action="delete-video" data-id="${escapeHtml(video.id)}">Delete from library</button></div></details>
     </div>
   </article>`;
 }
