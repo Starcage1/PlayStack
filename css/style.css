@@ -29,6 +29,7 @@ input, select { min-height: 44px; color: var(--text); background: #15151d; borde
 a { color: inherit; text-decoration: none; }
 .muted { color: var(--muted); }
 .app-frame { max-width: var(--content-width); min-height: 100vh; margin: auto; padding: 22px 24px 70px; }
+body.has-mini-player .app-frame { padding-bottom: 300px; }
 .topbar { display: flex; justify-content: space-between; align-items: center; }
 .brand { margin: 0; font-size: 1.35rem; letter-spacing: .03em; }
 .icon-button { width: 44px; min-width: 44px; padding: 0; font-size: 1.25rem; }
@@ -130,7 +131,8 @@ a { color: inherit; text-decoration: none; }
 }
 @media (min-width: 1040px) { .playlist-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 620px) {
-  .app-frame { padding: 16px 14px 320px; }
+  .app-frame { padding: 16px 14px 70px; }
+  body.has-mini-player .app-frame { padding-bottom: 320px; }
   .video-card { grid-template-columns: 120px minmax(0, 1fr); gap: 10px; padding: 9px; }
   .video-title { font-size: .94rem; }
   .video-author, .video-meta { font-size: .82rem; }

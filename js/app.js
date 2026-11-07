@@ -27,6 +27,8 @@ let searchTimer = 0;
 let pendingVideo = null;
 let searchOverlay;
 let storageWarning = "";
+let youtubeApiReady = false;
+let playerCreated = false;
 let editingPlaylistId = null;
 let pendingPlaylistVideoId = "";
 let returnAfterPlaylistCreate = "";
@@ -46,11 +48,11 @@ const allVideos = () => store.getVideos();
 const getCurrent = () => store.getVideo(playback.currentId);
 
 // Show a short confirmation and an optional one-time Undo action.
-function toast(message, undo) {
+function toast(message, action, actionLabel = "Undo") {
   clearTimeout(toastTimer);
-  toastRegion.innerHTML = `<div class="toast"><p>${escapeHtml(message)}</p>${undo ? `<button data-action="undo">Undo</button>` : ""}</div>`;
-  toastRegion.querySelector("button[data-action='undo']")?.addEventListener("click", () => {
-    undo(); toastRegion.innerHTML = ""; render();
+  toastRegion.innerHTML = `<div class="toast"><p>${escapeHtml(message)}</p>${action ? `<button data-action="toast-action">${escapeHtml(actionLabel)}</button>` : ""}</div>`;
+  toastRegion.querySelector("button[data-action='toast-action']")?.addEventListener("click", () => {
+    toastRegion.innerHTML = ""; action(); render();
   }, { once: true });
   toastTimer = window.setTimeout(() => { toastRegion.innerHTML = ""; }, 5000);
 }
@@ -82,6 +84,7 @@ function setPlayerMode(mode) {
   playerShell.classList.toggle("expanded", playback.expanded);
   playerShell.classList.toggle("mini", !playback.expanded);
   playerShell.classList.remove("is-hidden");
+  document.body.classList.add("has-mini-player");
 }
 
 function updatePlayerLabels() {
@@ -106,6 +109,7 @@ function playVideo(videoId, queueIds = [videoId]) {
   playback.autoplayPlaylistId = null;
   updatePlayerLabels();
   setPlayerMode("mini");
+  initializePlayer();
   yt.loadVideo(videoId, true);
 }
 
@@ -333,7 +337,7 @@ document.addEventListener("click", (event) => {
   else if (action === "close-dialog") actionButton.closest("dialog")?.close();
   else if (action === "expand-player") setPlayerMode("expanded");
   else if (action === "minimize-player") setPlayerMode("mini");
-  else if (action === "close-player") { yt.stop(); playerShell.classList.add("is-hidden"); playback.currentId = ""; playback.queue = []; }
+  else if (action === "close-player") { yt.stop(); playerShell.classList.add("is-hidden"); document.body.classList.remove("has-mini-player"); playback.currentId = ""; playback.queue = []; }
   else if (action === "toggle-playback") { if (yt.getState() === (window.YT?.PlayerState?.PLAYING ?? 1)) yt.pause(); else yt.play(); }
   else if (action === "favorite-current") { const video = getCurrent(); if (video) store.updateVideo(video.id, { favorite: !video.favorite }); render(); updatePlayerLabels(); }
   else if (action === "favorite") { const video = store.getVideo(id); if (video) { store.updateVideo(id, { favorite: !video.favorite }); render(); toast(video.favorite ? "Removed from Favs." : "Added to Favs."); } }
@@ -350,6 +354,7 @@ document.addEventListener("click", (event) => {
   else if (action === "delete-video") {
     const removed = store.deleteVideo(id);
     homeState.order = homeState.order.filter((videoId) => videoId !== id);
+    if (playback.currentId === id) { yt.stop(); playerShell.classList.add("is-hidden"); document.body.classList.remove("has-mini-player"); playback.currentId = ""; playback.queue = []; }
     render();
     if (removed) toast("Video deleted from your library.", () => { store.restoreVideo(removed); homeState.order.unshift(id); });
   }
@@ -433,8 +438,10 @@ document.addEventListener("click", (event) => {
   if (card && !event.target.closest("[data-action]") && !event.target.closest("details")) navigate({ name: "playlist", id: card.dataset.playlistOpen });
 });
 
-// The API callback is global by design. This one iframe lives outside #app.
-window.onYouTubeIframeAPIReady = () => {
+// Create the one iframe only after its shell has its visible 200px viewport.
+function initializePlayer() {
+  if (!youtubeApiReady || playerCreated) return;
+  playerCreated = true;
   yt.createPlayer("youtubePlayer", {
     onReady: () => { yt.setVolume(store.getState().settings.volume); updatePlayerControls(); },
     onStateChange: (state) => {
@@ -445,11 +452,22 @@ window.onYouTubeIframeAPIReady = () => {
       updatePlayerControls();
     },
     onError: (code) => {
-      if (code === 101 || code === 150) toast("This video can't be embedded.");
+      if (code === 101 || code === 150) {
+        const videoId = playback.currentId;
+        toast("This video can't be embedded.", () => {
+          const removed = store.deleteVideo(videoId);
+          yt.stop(); playerShell.classList.add("is-hidden"); document.body.classList.remove("has-mini-player"); playback.currentId = ""; playback.queue = [];
+          homeState.order = homeState.order.filter((id) => id !== videoId);
+          if (removed) toast("Video removed from your library.", () => { store.restoreVideo(removed); homeState.order.unshift(videoId); });
+        }, "Remove video");
+      }
       else toast("YouTube could not play this video. Try another one.");
     }
   });
-};
+}
+
+// The API callback is global by design. A player click reveals the shell first.
+window.onYouTubeIframeAPIReady = () => { youtubeApiReady = true; initializePlayer(); };
 const apiScript = document.createElement("script");
 apiScript.src = "https://www.youtube.com/iframe_api";
 apiScript.async = true;
@@ -469,13 +487,28 @@ document.querySelector("#playerVolume").addEventListener("input", (event) => { s
 // Space toggles playback unless typing; Escape closes the topmost surface.
 document.addEventListener("keydown", (event) => {
   const typing = event.target.matches("input, textarea, select, [contenteditable='true']");
-  if (event.key === " " && !typing && !playerShell.classList.contains("is-hidden")) { event.preventDefault(); if (yt.getState() === (window.YT?.PlayerState?.PLAYING ?? 1)) yt.pause(); else yt.play(); }
-  if (event.key === "/" && !typing) { event.preventDefault(); openSearch(); }
+  if ((event.key === "Enter" || event.key === " ") && !typing) {
+    const videoCard = event.target.closest("[data-video-id]");
+    const playlistCard = event.target.closest("[data-playlist-open]");
+    if (videoCard && !event.target.closest("button, summary, details")) { event.preventDefault(); playFromCurrentScreen(videoCard.dataset.videoId); }
+    else if (playlistCard && !event.target.closest("button, summary, details")) { event.preventDefault(); navigate({ name: "playlist", id: playlistCard.dataset.playlistOpen }); }
+  }
+  if (event.key === " " && !typing && !event.target.closest("button, a, summary, [data-video-id], [data-playlist-open]") && !playerShell.classList.contains("is-hidden")) { event.preventDefault(); if (yt.getState() === (window.YT?.PlayerState?.PLAYING ?? 1)) yt.pause(); else yt.play(); }
+  if (event.key === "/" && !typing && !document.querySelector("dialog[open]")) { event.preventDefault(); openSearch(); }
   if (event.key === "Escape") {
+    if (document.querySelector("dialog[open]")) return;
     if (searchOverlay && !searchOverlay.hidden) closeSearch();
     else if (playerShell.classList.contains("expanded")) setPlayerMode("mini");
   }
 });
+
+// Keep the thumbnail box in place when a video has no available thumbnail.
+document.addEventListener("error", (event) => {
+  if (event.target instanceof HTMLImageElement && (event.target.classList.contains("thumb") || event.target.classList.contains("playlist-cover"))) {
+    event.target.removeAttribute("src");
+    event.target.classList.add("thumbnail-missing");
+  }
+}, true);
 
 // Initial route and short playback polling keep the app responsive.
 watchRoute(render);

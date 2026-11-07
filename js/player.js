@@ -40,7 +40,7 @@ export function play() {
   player.playVideo();
 }
 export function pause() { if (ready) player.pauseVideo(); }
-export function stop() { if (ready) player.stopVideo(); }
+export function stop() { pending = null; if (ready) player.stopVideo(); }
 export function seekTo(seconds, allowSeekAhead = true) { if (ready) player.seekTo(Number(seconds), allowSeekAhead); }
 export function setVolume(value) { if (ready) player.setVolume(Math.max(0, Math.min(100, Number(value)))); }
 export function getState() { return ready ? player.getPlayerState() : -1; }
