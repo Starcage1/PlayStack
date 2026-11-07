@@ -1,5 +1,5 @@
 import { PLAYLIST_PAGE_SIZE } from "../config.js";
-import { paginate, sortPlaylists } from "../utils.js";
+import { paginate, sortPlaylists, timeAgo } from "../utils.js";
 
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 
@@ -12,9 +12,11 @@ export function renderPlaylists(playlists, videos, { sort = "recent", page = 1 }
     const first = videoMap.get(playlist.videoIds[0]);
     const cover = first
       ? `<img class="playlist-cover" loading="lazy" src="https://i.ytimg.com/vi/${encodeURIComponent(first.id)}/hqdefault.jpg" alt="">`
-      : `<div class="playlist-cover" aria-hidden="true">♫</div>`;
+      : `<div class="playlist-cover playlist-cover-empty" aria-hidden="true">▤</div>`;
+    const updatedAt = playlist.videoIds.map((id) => videoMap.get(id)?.addedAt).filter(Boolean).sort().at(-1) || playlist.createdAt;
     return `<article class="playlist-card" data-playlist-open="${escapeHtml(playlist.id)}" tabindex="0" role="link" aria-label="Open playlist ${escapeHtml(playlist.name)}">
-      ${cover}<div class="playlist-card-row"><div><h3>${escapeHtml(playlist.name)}</h3><p>${playlist.videoIds.length} ${playlist.videoIds.length === 1 ? "video" : "videos"}</p></div>
+      <div class="playlist-cover-stack"><span class="cover-stack-layer layer-back"></span><span class="cover-stack-layer layer-front"></span><div class="playlist-cover-wrap">${cover}<span class="cover-count">${playlist.videoIds.length} ${playlist.videoIds.length === 1 ? "video" : "videos"}</span></div></div>
+      <div class="playlist-card-row"><div><h3>${escapeHtml(playlist.name)}</h3><p>Updated ${timeAgo(updatedAt)}</p></div>
       <details class="playlist-menu"><summary aria-label="Playlist options">•••</summary><div class="menu-items">
         <button data-action="rename-playlist" data-id="${escapeHtml(playlist.id)}">Rename</button>
         <button data-action="delete-playlist" data-id="${escapeHtml(playlist.id)}">Delete playlist</button>

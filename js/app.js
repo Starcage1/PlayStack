@@ -187,6 +187,18 @@ function playFromCurrentScreen(videoId) {
   playback.autoplayPlaylistId = playlist.id;
 }
 
+// Build the playlist's full filtered and sorted queue, not just the current page.
+function playPlaylist(id, randomize = false) {
+  const playlist = store.getPlaylist(id);
+  if (!playlist) return;
+  const videos = playlist.videoIds.map((videoId) => store.getVideo(videoId)).filter(Boolean);
+  let queue = filterAndSortVideos(videos, { query: detailState.query, filter: detailState.filter, sort: detailState.sort, order: playlist.videoIds }).map((video) => video.id);
+  if (randomize) queue = shuffle(queue);
+  if (!queue.length) return;
+  playVideo(queue[0], queue);
+  playback.autoplayPlaylistId = playlist.id;
+}
+
 // Learn missing title, channel, and duration when YouTube provides its player data.
 function updateRealMetadata() {
   const video = getCurrent();
@@ -403,6 +415,8 @@ document.addEventListener("click", (event) => {
   else if (action === "nav-favorites") { sidebarDrawerOpen = false; navigate({ name: "favorites" }); }
   else if (action === "sidebar-playlist") { sidebarDrawerOpen = false; navigate({ name: "playlist", id }); }
   else if (action === "sidebar-show-more") { sidebarShowAll = !sidebarShowAll; render(); }
+  else if (action === "play-all-playlist") playPlaylist(parseRoute(location.hash).id);
+  else if (action === "shuffle-playlist") playPlaylist(parseRoute(location.hash).id, true);
   else if (action === "open-add-video") openAddVideo();
   else if (action === "shuffle") { homeState.order = shuffle(allVideos().map((video) => video.id)); homeState.page = 1; render(); }
   else if (action === "home-filter") { const selected = filter === "All" ? "" : filter; homeState.filter = homeState.filter === selected ? "" : selected; homeState.page = 1; render(); }
