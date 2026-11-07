@@ -53,7 +53,7 @@ node --test
 
 ## Voice slice
 
-The microphone button records up to eight seconds, stops after about 1.2 seconds of silence, resamples the audio to mono 16 kHz PCM WAV, and sends it to the local `/api/stt` endpoint. The first voice slice displays the recognized text and speaks it back through `/api/tts`; voice commands are not connected to app actions yet. Run the Python server rather than opening the HTML file directly.
+The microphone button records up to eight seconds, stops after about 1.2 seconds of silence, resamples the audio to mono 16 kHz PCM WAV, and sends it to the local `/api/stt` endpoint. Recognized Hinglish, English, or Devanagari commands are matched against a small safe command list, applied through the app's existing player and storage functions, and answered through `/api/tts`. Unsupported requests are not executed. Run the Python server rather than opening the HTML file directly.
 
 ## Main files
 
@@ -69,4 +69,4 @@ The microphone button records up to eight seconds, stops after about 1.2 seconds
 
 ## Progress
 
-The backend and basic microphone round trip are in place. The next step connects recognized speech to safe app commands; the current voice slice only speaks back what it heard.
+The backend, microphone round trip, and safe voice command actions are in place. The next step polishes recording feedback, keyboard access, help, and volume ducking while recording or speaking.

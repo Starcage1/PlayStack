@@ -2,7 +2,7 @@ import { transcribe, speak } from "./gnani-client.js";
 import { recordCommand } from "./recorder.js";
 
 // Add a small microphone and status pill without changing the routed pages.
-export function initVoiceUI({ getKeyterms = () => [] } = {}) {
+export function initVoiceUI({ getKeyterms = () => [], handleTranscript = async (heard) => `Maine suna: ${heard}` } = {}) {
   const dock = document.createElement("section");
   dock.className = "voice-dock";
   dock.innerHTML = `<p class="voice-status" role="status" aria-live="polite" hidden></p>
@@ -38,12 +38,12 @@ export function initVoiceUI({ getKeyterms = () => [] } = {}) {
         return;
       }
       const heard = result.transcript.trim();
-      const reply = `Maine suna: ${heard}`;
-      showState("speaking", `Heard: ${heard}`);
+      const reply = await handleTranscript(heard);
+      showState("speaking", `Heard: ${heard} → ${reply}`);
       await speak(reply);
       const elapsed = Math.round(performance.now() - started);
       console.info(`[Video Vault voice] Speech-to-reply: ${elapsed} ms`);
-      showState("idle", `Heard: ${heard}`);
+      showState("idle", `Heard: ${heard} → ${reply}`);
     } catch (error) {
       const message = error.name === "NotAllowedError" || error.name === "PermissionDeniedError"
         ? "Microphone access is blocked. Allow it in browser settings and try again."

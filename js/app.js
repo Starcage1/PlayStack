@@ -8,6 +8,9 @@ import { renderPlaylists } from "./views/playlists.js";
 import { renderPlaylistDetail } from "./views/playlist-detail.js";
 import { renderSearchPage } from "./views/search-results.js";
 import { initVoiceUI } from "./voice/voice-ui.js";
+import { parseCommand } from "./voice/intents.js";
+import { createVoiceActions } from "./voice/actions.js";
+import { responseFor } from "./voice/responses.js";
 
 const app = document.querySelector("#app");
 const sidebarContent = document.querySelector("#sidebarContent");
@@ -296,11 +299,53 @@ function updatePlayerControls() {
 // Move through the queue after an explicit Prev/Next click or enabled autoplay.
 function moveQueue(step, autoplay = true) {
   const nextIndex = playback.index + step;
-  if (nextIndex < 0 || nextIndex >= playback.queue.length) return;
+  if (nextIndex < 0 || nextIndex >= playback.queue.length) return false;
   playback.index = nextIndex;
   playback.currentId = playback.queue[nextIndex];
   updatePlayerLabels();
   yt.loadVideo(playback.currentId, autoplay);
+  return true;
+}
+
+// Update the same app state and controls used by regular mouse actions.
+function createVoiceActionRunner() {
+  return createVoiceActions({
+    player: yt,
+    store,
+    navigate,
+    getContext: () => {
+      const route = parseRoute(location.hash);
+      return {
+        currentVideoId: playback.currentId,
+        currentPlaylistId: route.name === "playlist" ? route.id : playback.autoplayPlaylistId,
+        routeName: route.name,
+        volume: store.getState().settings.volume,
+        playlists: store.getPlaylists()
+      };
+    },
+    nextVideo: () => moveQueue(1, true),
+    previousVideo: () => moveQueue(-1, true),
+    refresh: () => {
+      render();
+      if (playback.currentId) updatePlayerLabels();
+      document.querySelector("#playerVolume").value = String(store.getState().settings.volume);
+    },
+    setPlaylistSort: (sort, playlistId) => {
+      detailState.sort = sort;
+      detailState.page = 1;
+      const playlist = store.getPlaylist(playlistId);
+      if (playlist && String(playback.autoplayPlaylistId) === String(playlistId)) {
+        const videos = playlist.videoIds.map((id) => store.getVideo(id)).filter(Boolean);
+        const sortedIds = filterAndSortVideos(videos, { query: detailState.query, filter: detailState.filter, sort, order: playlist.videoIds }).map((video) => video.id);
+        playback.queue = sortedIds.length ? sortedIds : [playback.currentId];
+        playback.index = Math.max(0, playback.queue.indexOf(playback.currentId));
+      }
+      render();
+      if (playback.currentId) updatePlayerLabels();
+    },
+    setPlaylistsSort: (sort) => { playlistState.sort = sort; playlistState.page = 1; render(); },
+    openCreatedPlaylist: (playlist) => { render(); navigate({ name: "playlist", id: playlist.id }); }
+  });
 }
 
 // Create a playlist checkbox for the Add video dialog.
@@ -661,11 +706,22 @@ document.addEventListener("load", (event) => {
 }, true);
 
 // Initial route and short playback polling keep the app responsive.
+const voiceActions = createVoiceActionRunner();
 initVoiceUI({
   getKeyterms: () => [...new Set([
     ...store.getPlaylists().map((playlist) => playlist.name),
     ...allVideos().flatMap((video) => video.tags || [])
-  ])].slice(0, 200)
+  ])].slice(0, 200),
+  handleTranscript: async (heard) => {
+    const parsed = parseCommand(heard, {
+      routeName: parseRoute(location.hash).name,
+      currentVideoId: playback.currentId
+    });
+    const result = await voiceActions.execute(parsed);
+    const reply = responseFor(parsed, result);
+    toast(reply);
+    return reply;
+  }
 });
 watchRoute(render);
 window.setInterval(updatePlayerControls, 250);
