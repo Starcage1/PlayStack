@@ -1,5 +1,5 @@
 import { transcribe, speak } from "./gnani-client.js";
-import { recordCommand } from "./recorder.js";
+import { recordCommand, stopRecording } from "./recorder.js";
 
 const POSITION_KEY = "videovault:voice:position";
 
@@ -32,6 +32,7 @@ export function initVoiceUI({
   const textForm = dock.querySelector(".voice-text-form");
   const textInput = dock.querySelector("#voiceTextCommand");
   let busy = false;
+  let recording = false;
   let suppressClick = false;
   let drag = null;
 
@@ -43,8 +44,18 @@ export function initVoiceUI({
 
   function setPosition(left, top) {
     const margin = 8;
-    const x = Math.max(margin, Math.min(window.innerWidth - button.offsetWidth - margin, left));
-    const y = Math.max(margin, Math.min(window.innerHeight - button.offsetHeight - margin, top));
+    let x = Math.max(margin, Math.min(window.innerWidth - button.offsetWidth - margin, left));
+    let y = Math.max(margin, Math.min(window.innerHeight - button.offsetHeight - margin, top));
+    const miniPlayer = document.querySelector(".player-shell.mini:not(.is-hidden)");
+    if (miniPlayer) {
+      const player = miniPlayer.getBoundingClientRect();
+      const overlaps = (candidateX, candidateY) => candidateX < player.right && candidateX + button.offsetWidth > player.left && candidateY < player.bottom && candidateY + button.offsetHeight > player.top;
+      if (overlaps(x, y)) {
+        const rightX = player.right + 12;
+        if (rightX + button.offsetWidth <= window.innerWidth - margin) x = rightX;
+        else y = Math.max(margin, player.top - button.offsetHeight - 12);
+      }
+    }
     const dockBounds = dock.getBoundingClientRect();
     const buttonBounds = button.getBoundingClientRect();
     dock.classList.add("is-positioned");
@@ -54,7 +65,8 @@ export function initVoiceUI({
 
   function showState(state, message = "") {
     dock.dataset.state = state;
-    button.disabled = busy;
+    recording = state === "listening" && busy;
+    button.disabled = busy && !recording;
     button.setAttribute("aria-label", state === "listening" ? "Listening for a voice command" : "Start voice command");
     button.title = state === "listening" ? "Listening… (V also starts voice control)" : "Start voice command (V)";
     status.hidden = !message;
@@ -78,7 +90,10 @@ export function initVoiceUI({
   }
 
   async function start() {
-    if (busy) return;
+    if (busy) {
+      if (recording) stopRecording();
+      return;
+    }
     busy = true;
     const volumeBefore = Number(getVolume());
     const started = performance.now();
@@ -110,6 +125,7 @@ export function initVoiceUI({
       showState("error", message);
     } finally {
       setPlaybackVolume(Number(getVolume()));
+      recording = false;
       busy = false;
       button.disabled = false;
     }
@@ -157,5 +173,5 @@ export function initVoiceUI({
     setPosition(bounds.left, bounds.top);
   });
 
-  return { element: dock, showState, start, runTextCommand };
+  return { element: dock, showState, start, runTextCommand, toggle: start };
 }
