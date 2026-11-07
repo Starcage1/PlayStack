@@ -9,6 +9,8 @@ import { renderPlaylistDetail } from "./views/playlist-detail.js";
 import { searchLibrary } from "./search.js";
 
 const app = document.querySelector("#app");
+const sidebarContent = document.querySelector("#sidebarContent");
+const sidebarScrim = document.querySelector("#sidebarScrim");
 const playerShell = document.querySelector("#playerShell");
 const toastRegion = document.querySelector("#toastRegion");
 const addDialog = document.querySelector("#addVideoDialog");
@@ -34,10 +36,29 @@ let pendingPlaylistVideoId = "";
 let returnAfterPlaylistCreate = "";
 let membershipVideoId = "";
 let tagsEditingVideoId = "";
+let sidebarShowAll = false;
+let sidebarDrawerOpen = false;
+
+// Use small original line icons instead of a third-party icon package.
+const iconPaths = {
+  home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
+  playlist: '<rect x="3" y="4" width="14" height="16" rx="2"/><path d="M7 8h6M7 12h6M7 16h3M20 7v10a3 3 0 1 1-2-2.8V7z"/>',
+  favorite: '<path d="M20.8 8.8c0 5.2-8.8 11-8.8 11S3.2 14 3.2 8.8a4.3 4.3 0 0 1 8.8-1 4.3 4.3 0 0 1 8.8 1z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  chevron: '<path d="m9 18 6-6-6-6"/>',
+  search: '<circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/>',
+  shuffle: '<path d="m16 3 5 5-5 5M3 7h2c5 0 8 10 13 10h3M3 17h2c2.2 0 3.8-2 5.3-4.2M14 7c1.2-1.2 2.4-2 4-2h3"/>'
+};
+const icon = (name) => `<span class="sidebar-icon" aria-hidden="true"><svg viewBox="0 0 24 24">${iconPaths[name] || iconPaths.playlist}</svg></span>`;
 
 // Read the browser's storage safely; Store switches to memory if it fails.
 let storage = null;
 try { storage = window.localStorage; } catch (_) { storage = null; }
+let sidebarCollapsed = window.innerWidth < 1300;
+try {
+  const savedSidebar = storage?.getItem("videovault:ui:sidebar-collapsed");
+  if (savedSidebar !== null) sidebarCollapsed = savedSidebar === "true";
+} catch (_) { /* Use the screen-width default. */ }
 let store;
 store = createStore(storage, { onWarning: (message) => { storageWarning = message; if (store) render(); } });
 homeState.order = shuffle(store.getVideos().map((video) => video.id));
@@ -63,19 +84,45 @@ function render() {
   const warning = storageWarning ? `<p class="storage-warning">${escapeHtml(storageWarning)}</p>` : "";
   let content = "";
   if (route.name === "home") content = renderHome({ videos: allVideos(), order: homeState.order, filter: homeState.filter, page: homeState.page });
+  else if (route.name === "favorites") content = renderHome({ videos: allVideos(), order: homeState.order, filter: "Favs", page: homeState.page });
   else if (route.name === "playlists") content = renderPlaylists(store.getPlaylists(), allVideos(), playlistState);
   else {
     if (detailState.id !== route.id) detailState = { id: route.id, query: "", filter: "", sort: "manual", page: 1 };
     const playlist = store.getPlaylist(route.id);
     content = playlist ? renderPlaylistDetail(playlist, allVideos(), detailState) : `<button data-action="back-playlists">← Playlists</button><div class="empty-state"><h3>Playlist not found</h3><button data-action="back-playlists">Back to playlists</button></div>`;
   }
-  app.innerHTML = `<div class="app-frame"><header class="topbar"><h1 class="brand">VIDEO VAULT</h1><button class="icon-button" data-action="open-search" aria-label="Search your vault">⌕</button></header>
-    <nav class="tabs" aria-label="Main navigation"><a href="#/home" class="${route.name === "home" ? "active" : ""}">Home</a><a href="#/playlists" class="${route.name !== "home" ? "active" : ""}">Playlist</a></nav>${warning}<main id="routeView">${content}</main></div>`;
-  if (route.name === "home") {
+  app.innerHTML = `${warning}<main id="routeView">${content}</main>`;
+  renderSidebar(route);
+  if (window.innerWidth < 800) sidebarDrawerOpen = false;
+  applySidebarState();
+  if (route.name === "home" || route.name === "favorites") {
     const chipHost = app.querySelector("#homeChips");
-    if (chipHost) chipHost.innerHTML = renderHomeChips(allVideos(), homeState.filter);
+    if (chipHost) chipHost.innerHTML = renderHomeChips(allVideos(), route.name === "favorites" ? "Favs" : homeState.filter);
   }
   if (playback.currentId) updatePlayerLabels();
+}
+
+// Render fixed navigation separately from the routed page content.
+function renderSidebar(route) {
+  const playlists = store.getPlaylists();
+  const shown = sidebarShowAll ? playlists : playlists.slice(0, 7);
+  const playlistItems = shown.map((playlist) => `<button class="sidebar-link sidebar-playlist-link ${route.name === "playlist" && route.id === String(playlist.id) ? "active" : ""}" data-action="sidebar-playlist" data-id="${escapeHtml(playlist.id)}">${icon("playlist")}<span class="sidebar-playlist-copy"><span>${escapeHtml(playlist.name)}</span><small>${playlist.videoIds.length} ${playlist.videoIds.length === 1 ? "video" : "videos"}</small></span></button>`).join("");
+  sidebarContent.innerHTML = `<div class="sidebar-section">
+      <button class="sidebar-link ${route.name === "home" ? "active" : ""}" data-action="nav-home">${icon("home")}<span>Home</span></button>
+      <button class="sidebar-link ${route.name === "playlists" ? "active" : ""}" data-action="nav-playlists">${icon("playlist")}<span>Playlists</span></button>
+      <button class="sidebar-link ${route.name === "favorites" ? "active" : ""}" data-action="nav-favorites">${icon("favorite")}<span>Favorites</span></button>
+    </div><div class="sidebar-section"><div class="sidebar-title">Your playlists</div>${playlistItems}
+      ${playlists.length > 7 ? `<button class="sidebar-link sidebar-show-more" data-action="sidebar-show-more">${sidebarShowAll ? "Show less" : "Show more"}</button>` : ""}
+      <button class="sidebar-link" data-action="new-playlist">${icon("plus")}<span>New playlist</span></button>
+    </div>`;
+}
+
+// Apply and persist the desktop sidebar choice; phones use an overlay drawer.
+function applySidebarState() {
+  document.body.classList.toggle("sidebar-collapsed", sidebarCollapsed);
+  document.body.classList.toggle("sidebar-expanded", !sidebarCollapsed);
+  document.body.classList.toggle("sidebar-open", sidebarDrawerOpen);
+  sidebarScrim.hidden = !sidebarDrawerOpen;
 }
 
 // Keep the same iframe and shell, changing only its CSS mode.
@@ -327,7 +374,21 @@ document.addEventListener("click", (event) => {
   }
   if (!actionButton) return;
   const { action, id, filter, page } = actionButton.dataset;
-  if (action === "open-add-video") openAddVideo();
+  if (action === "toggle-sidebar") {
+    if (window.innerWidth < 800) sidebarDrawerOpen = !sidebarDrawerOpen;
+    else {
+      sidebarCollapsed = !sidebarCollapsed;
+      try { storage?.setItem("videovault:ui:sidebar-collapsed", String(sidebarCollapsed)); } catch (_) { /* Keep the choice for this page. */ }
+    }
+    applySidebarState();
+  }
+  else if (action === "close-sidebar") { sidebarDrawerOpen = false; applySidebarState(); }
+  else if (action === "nav-home") { sidebarDrawerOpen = false; navigate({ name: "home" }); }
+  else if (action === "nav-playlists") { sidebarDrawerOpen = false; navigate({ name: "playlists" }); }
+  else if (action === "nav-favorites") { sidebarDrawerOpen = false; navigate({ name: "favorites" }); }
+  else if (action === "sidebar-playlist") { sidebarDrawerOpen = false; navigate({ name: "playlist", id }); }
+  else if (action === "sidebar-show-more") { sidebarShowAll = !sidebarShowAll; render(); }
+  else if (action === "open-add-video") openAddVideo();
   else if (action === "shuffle") { homeState.order = shuffle(allVideos().map((video) => video.id)); homeState.page = 1; render(); }
   else if (action === "home-filter") { homeState.filter = homeState.filter === filter ? "" : filter; homeState.page = 1; render(); }
   else if (action === "clear-home-filter") { homeState.filter = ""; homeState.page = 1; render(); }

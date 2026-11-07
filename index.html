@@ -5,11 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Video Vault</title>
+  <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/style.css">
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
-  <div id="app"></div>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <button class="icon-button" data-action="toggle-sidebar" aria-label="Toggle navigation" title="Toggle navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <a class="brand" href="#/home" aria-label="Video Vault home">
+        <svg class="brand-mark" viewBox="0 0 32 32" role="img" aria-label=""><path d="M7 7.5 23 4l5 4-16 4z"/><path d="M5 13 21 9.5l6 4-16 4z"/><path d="M4 18.5 20 15l7 4v6L11 29l-7-4z"/><path d="m11 19 9-2v7l-9 2z"/></svg>
+        <span>Video Vault</span>
+      </a>
+    </div>
+    <div class="topbar-search-slot"><button class="icon-button" data-action="open-search" aria-label="Search your vault" title="Search">⌕</button></div>
+    <button class="topbar-add" data-action="open-add-video">+ Add video</button>
+  </header>
+
+  <aside id="sidebar" class="sidebar" aria-label="Main navigation">
+    <nav id="sidebarContent"></nav>
+  </aside>
+  <button id="sidebarScrim" class="sidebar-scrim" data-action="close-sidebar" aria-label="Close navigation" hidden></button>
+  <main id="app" class="main-content"></main>
 
   <!-- This player stays here while only the route content changes. -->
   <section id="playerShell" class="player-shell is-hidden mini" aria-label="Video player">

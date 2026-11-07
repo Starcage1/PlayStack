@@ -1,6 +1,7 @@
 // Keep navigation in the URL hash so browser Back works without a server router.
 export function parseRoute(hash = "") {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  if (parts[0] === "favorites") return { name: "favorites" };
   if (parts[0] === "playlists") return { name: "playlists" };
   if (parts[0] === "playlist" && parts[1]) return { name: "playlist", id: decodeURIComponent(parts[1]) };
   return { name: "home" };
