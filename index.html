@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Video Vault</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- This player stays here while only the route content changes. -->
+  <section id="playerShell" class="player-shell is-hidden mini" aria-label="Video player">
+    <div class="player-viewport"><div id="youtubePlayer"></div></div>
+    <div class="mini-bar">
+      <div class="mini-title" id="miniTitle">Nothing is playing</div>
+      <button class="icon-button" data-action="toggle-playback" aria-label="Play or pause">▶</button>
+      <input class="mini-progress" id="miniProgress" type="range" min="0" max="1000" value="0" aria-label="Seek video">
+      <button class="icon-button" data-action="expand-player" aria-label="Expand player">⤢</button>
+      <button class="icon-button" data-action="close-player" aria-label="Close player">×</button>
+    </div>
+    <div class="expanded-panel">
+      <div class="expanded-heading">
+        <div><h2 id="expandedTitle">Nothing is playing</h2><p id="expandedAuthor"></p></div>
+        <div class="expanded-actions">
+          <button data-action="previous-video" aria-label="Previous video">◀</button>
+          <button data-action="next-video" aria-label="Next video">▶</button>
+          <button data-action="favorite-current" aria-label="Toggle favorite">♡ Favorite</button>
+          <button data-action="add-current-playlist">Add to playlist</button>
+          <button data-action="minimize-player">Minimize</button>
+        </div>
+      </div>
+      <div class="expanded-controls">
+        <button data-action="toggle-playback">Play</button>
+        <input id="expandedSeek" type="range" min="0" max="0" value="0" aria-label="Seek video">
+        <span id="playerTime">0:00 / 0:00</span>
+        <label>Volume <input id="playerVolume" type="range" min="0" max="100" value="100"></label>
+      </div>
+    </div>
+  </section>
+
+  <!-- Native dialogs keep small tasks in the current screen. -->
+  <dialog id="addVideoDialog" class="dialog-card">
+    <form id="addVideoForm" method="dialog">
+      <div class="dialog-heading"><h2>Add a video</h2><button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">×</button></div>
+      <label>YouTube link<input id="addVideoUrl" required placeholder="https://www.youtube.com/watch?v=…"></label>
+      <button type="button" id="previewVideo">Preview</button>
+      <div id="videoPreview" class="video-preview" hidden></div>
+      <label>Tags, separated by commas<input id="videoTags" placeholder="Music, Games"></label>
+      <div id="addPlaylistChoices"></div>
+      <div class="dialog-actions"><button type="button" class="secondary" data-action="close-dialog">Cancel</button><button type="submit" id="saveVideo" disabled>Save video</button></div>
+      <p id="addVideoMessage" class="muted" role="status"></p>
+    </form>
+  </dialog>
+
+  <dialog id="playlistDialog" class="dialog-card">
+    <form id="playlistForm" method="dialog">
+      <div class="dialog-heading"><h2 id="playlistDialogTitle">New playlist</h2><button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">×</button></div>
+      <label>Playlist name<input id="playlistName" required maxlength="80"></label>
+      <div class="dialog-actions"><button type="button" class="secondary" data-action="close-dialog">Cancel</button><button type="submit">Save playlist</button></div>
+      <p id="playlistMessage" class="muted" role="status"></p>
+    </form>
+  </dialog>
+
+  <dialog id="membershipDialog" class="dialog-card">
+    <form id="membershipForm" method="dialog">
+      <div class="dialog-heading"><h2>Add to playlist</h2><button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">×</button></div>
+      <div id="membershipChoices"></div>
+      <button type="button" class="secondary" data-action="new-playlist-inline">+ New playlist…</button>
+      <div class="dialog-actions"><button type="button" class="secondary" data-action="close-dialog">Cancel</button><button type="submit">Done</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="confirmDialog" class="dialog-card">
+    <form id="confirmForm" method="dialog">
+      <h2 id="confirmTitle">Delete playlist?</h2><p id="confirmText">This action cannot be undone.</p>
+      <div class="dialog-actions"><button value="cancel" class="secondary">Cancel</button><button value="confirm" class="danger">Delete</button></div>
+    </form>
+  </dialog>
+
+  <div id="searchOverlay" class="search-overlay" hidden>
+    <div class="search-panel">
+      <div class="search-heading"><h2>Search your vault</h2><button class="icon-button" data-action="close-search" aria-label="Close search">×</button></div>
+      <input id="globalSearch" type="search" placeholder="Search videos, channels, tags, playlists…" autocomplete="off">
+      <div id="searchResults"></div>
+    </div>
+  </div>
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+</body>
+</html>
