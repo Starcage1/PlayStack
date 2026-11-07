@@ -21,6 +21,8 @@ python server.py
 
 Open <http://127.0.0.1:8000/>. The Python server hosts both the static app and its same-origin API endpoints. Keep the terminal open. YouTube playback and Gnani services need internet access.
 
+If another local server already owns port 8000, start Flask on another port with `python server.py --port 8001` and open <http://127.0.0.1:8001/> instead. The web page and `/api/stt` must come from the same Flask server; `python -m http.server` cannot handle the voice POST requests.
+
 ## Verify your Gnani key first
 
 With the key saved in `.env`, run:

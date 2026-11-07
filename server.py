@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import argparse
 import json
 import logging
 import math
@@ -274,4 +275,7 @@ def frontend(requested: str = "index.html"):
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=8000, debug=False)
+    parser = argparse.ArgumentParser(description="Run the local Video Vault app server.")
+    parser.add_argument("--port", type=int, default=8000, help="Local port to serve on (default: 8000).")
+    args = parser.parse_args()
+    app.run(host="127.0.0.1", port=args.port, debug=False)
