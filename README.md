@@ -2,56 +2,67 @@
 
 Video Vault is a personal library for videos you choose and playlists you curate. The interface uses an original stacked-card mark and hand-drawn inline SVG icons. Video Vault is not affiliated with YouTube; playback uses YouTube's embedded player.
 
-## Run it
+## Run locally
 
-Open a terminal in this folder and run:
+Python 3.10 or newer is recommended. From this folder:
 
-```text
-python -m http.server 8000 --bind 127.0.0.1
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-Then open <http://127.0.0.1:8000/>. Keep the terminal open while using the app. Internet access is needed for YouTube playback and video details. If port 8000 is busy, change `8000` in both places.
+Open `.env` in a text editor and add your Gnani key to `GNANI_API_KEY`. Keep `.env` private; Git ignores it. Then start the app:
 
-## Tests
+```powershell
+python server.py
+```
 
-With Node.js installed, run:
+Open <http://127.0.0.1:8000/>. The Python server hosts both the static app and its same-origin API endpoints. Keep the terminal open. YouTube playback and Gnani services need internet access.
+
+## Verify your Gnani key first
+
+With the key saved in `.env`, run:
+
+```powershell
+python check_gnani.py
+```
+
+The check asks Timbre to synthesize “Namaste, yeh ek test hai” into `test.wav`, then asks Prisma to transcribe that file. It prints the transcript, never the key. It reports common authentication, credit, permission, and rate-limit errors in plain language. Do this before continuing with the microphone and command UI phase.
+
+For local backend work without sending audio to Gnani, set `MOCK_GNANI=1` in `.env` and restart the server. `/api/stt` returns a canned command, `/api/tts` returns a short beep, and the page displays a visible **MOCK MODE** badge. Mock mode is development-only. Set `MOCK_GNANI=0` for real API requests.
+
+## Server endpoints
+
+- `GET /api/health` returns only whether a key is configured and whether mock mode is on. It never returns the key.
+- `POST /api/stt` accepts multipart `audio_file` and optional JSON-array `keyterms`; it calls Prisma v3.0 using transliterated output and automatic Indic language detection.
+- `POST /api/tts` accepts `{ "text": "..." }`; it calls Timbre v2.5 with Poorvi in `hi-en`, returns WAV audio, and keeps a small in-memory cache of recent phrases.
+
+Gnani calls are serialized in this local server. A 429 is retried once after one second, and requests time out after 15 seconds. Provider failures are converted into short messages without logging request contents or credentials.
+
+The [Gnani API documentation index](https://docs.gnani.ai/llms.txt) links the Prisma v3.0, STT REST, Timbre voice catalog, and TTS REST references. The request settings above follow the API details supplied in this project brief.
+
+## Frontend checks
+
+The app itself has no JavaScript build step or npm dependencies. With Node.js installed, run its pure-logic tests:
 
 ```text
 node --test
 ```
 
-The app itself needs no Node.js, npm, framework, or installed packages. `package.json` only enables JavaScript modules and provides a test shortcut.
+## Main files
 
-## Files
+- `server.py` serves the app, protects the API key, and proxies the two Gnani calls.
+- `check_gnani.py` performs a real TTS-then-STT credential check.
+- `.env.example` is a safe template; put the actual key only in your ignored `.env` file.
+- `requirements.txt` lists Flask, requests, and python-dotenv.
+- `index.html`, `css/`, and `js/` are the existing web app. `js/environment-badge.js` checks the health endpoint and makes mock mode visible.
+- `js/store.js` manages saved videos and playlists in browser storage.
+- `js/player.js` wraps the embedded video player and keeps its existing public controls.
+- `js/views/` draws the Home, playlist, playlist detail, and search screens.
+- `tests/` covers pure ID parsing, routes, searching, list helpers, and store behavior with in-memory storage.
 
-- `index.html` holds the top bar, navigation, one persistent player shell, and the native dialogs.
-- `css/tokens.css` defines the purple accent, dark palette, spacing, and shape sizes.
-- `css/style.css` styles the home feed, playlist screens, search results, player, dialogs, and responsive layouts.
-- `js/app.js` connects the screens, dialogs, shortcuts, persistent player, and user actions.
-- `js/router.js` reads and changes hash routes so browser Back works.
-- `js/player.js` wraps YouTube's IFrame API. Its `play`, `pause`, `seekTo`, `setVolume`, `getState`, `getTime`, and `getDuration` functions remain available.
-- `js/store.js` handles saved videos, playlists, and browser storage, with an in-memory fallback and visible warning.
-- `js/video-id.js` reads a video ID from YouTube links or a bare ID.
-- `js/utils.js` contains shuffle, list filtering, sorting, pagination, and `timeAgo` helpers.
-- `js/search.js` searches saved video and playlist details without page or browser APIs.
-- `js/config.js` contains page-size and storage settings.
-- `js/views/home.js` draws the video cards and Home chips.
-- `js/views/playlists.js` draws and sorts the playlist grid.
-- `js/views/playlist-detail.js` draws playlist controls and numbered video rows.
-- `js/views/search-results.js` groups matching videos and playlists on the search page.
-- `tests/` checks ID parsing, routes, search, list helpers, persistence, and playlist operations using in-memory storage.
+## Current phase boundary
 
-## Data and playback
-
-The library is stored in browser `localStorage` under `videovault:v1`. Adding a video tries YouTube oEmbed for its title and channel; if that request is unavailable, the app still saves it and can fill in details when playback starts. Some videos cannot be embedded because their owners disabled embedding.
-
-The iframe is created once outside the routed content. On `#/watch`, the same player is expanded; after navigating away, it stays visible as a mini player and playback continues. Playlist playback uses the full filtered and sorted queue. Autoplay Seq is enabled by default on each playlist.
-
-## Manual check
-
-1. Collapse the sidebar, reload, and confirm the choice remains saved. Try the drawer on a narrow screen.
-2. Scroll the Home chips with their arrows and hover or focus a video to reveal its menu.
-3. Play a video, press browser Back, and confirm it keeps playing in the mini player. Expand it again.
-4. Play all from a playlist and check the Up next list. Let a video end, then turn Autoplay Seq off and confirm it stops at the end.
-5. Search from the top bar and open a video or playlist result.
-6. Resize to phone, laptop, and desktop widths and check that the layout adapts.
+This phase prepares the safe backend and verifies the Gnani account. It does not yet add a microphone, voice command parser, spoken replies, or voice controls. Run `check_gnani.py` and confirm its result before the next phase.
