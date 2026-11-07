@@ -66,6 +66,10 @@ a { color: inherit; text-decoration: none; }
 .playlist-cover { width: 100%; aspect-ratio: 16/9; display: grid; place-items: center; object-fit: cover; border-radius: 9px; background: linear-gradient(140deg, #2a2540, #483d70); color: #d9d2ff; font-size: 2rem; }
 .playlist-card h3 { margin: 10px 0 4px; overflow-wrap: anywhere; }
 .playlist-card p { margin: 0; color: var(--muted); }
+.playlist-card-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.playlist-menu { position: relative; }
+.playlist-menu summary { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 9px; cursor: pointer; list-style: none; }
+.playlist-menu summary::-webkit-details-marker { display: none; }
 .detail-search { min-width: min(250px, 100%); flex: 1; }
 .dialog-card { width: min(520px, calc(100% - 24px)); max-height: min(88vh, 760px); padding: 22px; color: var(--text); border: 1px solid var(--border); border-radius: 18px; background: #1d1b28; box-shadow: 0 24px 80px #000b; }
 .dialog-card::backdrop { background: #09080dbb; backdrop-filter: blur(4px); }

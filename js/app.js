@@ -4,6 +4,7 @@ import { shuffle } from "./utils.js";
 import { navigate, parseRoute, watchRoute } from "./router.js";
 import * as yt from "./player.js";
 import { formatTime, renderHome, renderHomeChips } from "./views/home.js";
+import { renderPlaylists } from "./views/playlists.js";
 
 const app = document.querySelector("#app");
 const playerShell = document.querySelector("#playerShell");
@@ -16,12 +17,17 @@ const preview = document.querySelector("#videoPreview");
 const saveVideoButton = document.querySelector("#saveVideo");
 const addChoices = document.querySelector("#addPlaylistChoices");
 const homeState = { filter: "", page: 1, order: [] };
+const playlistState = { sort: "recent", page: 1 };
 const playback = { queue: [], index: 0, currentId: "", expanded: false, seeking: false, miniSeeking: false };
 let toastTimer = 0;
 let searchTimer = 0;
 let pendingVideo = null;
 let searchOverlay;
 let storageWarning = "";
+let editingPlaylistId = null;
+let pendingPlaylistVideoId = "";
+let returnAfterPlaylistCreate = "";
+let membershipVideoId = "";
 
 // Read the browser's storage safely; Store switches to memory if it fails.
 let storage = null;
@@ -51,7 +57,7 @@ function render() {
   const warning = storageWarning ? `<p class="storage-warning">${escapeHtml(storageWarning)}</p>` : "";
   let content = "";
   if (route.name === "home") content = renderHome({ videos: allVideos(), order: homeState.order, filter: homeState.filter, page: homeState.page });
-  else if (route.name === "playlists") content = `<section class="screen-heading"><div><h2>Playlists</h2><p class="muted">Your hand-picked collections.</p></div><button data-action="new-playlist">+ New playlist</button></section><div class="empty-state"><h3>Playlist tools are next</h3><p>Your videos stay here while playlist management is added.</p></div>`;
+  else if (route.name === "playlists") content = renderPlaylists(store.getPlaylists(), allVideos(), playlistState);
   else content = `<button data-action="back-playlists">← Playlists</button><div class="empty-state"><h3>Playlist not found</h3><button data-action="back-playlists">Back to playlists</button></div>`;
   app.innerHTML = `<div class="app-frame"><header class="topbar"><h1 class="brand">VIDEO VAULT</h1><button class="icon-button" data-action="open-search" aria-label="Search your vault">⌕</button></header>
     <nav class="tabs" aria-label="Main navigation"><a href="#/home" class="${route.name === "home" ? "active" : ""}">Home</a><a href="#/playlists" class="${route.name !== "home" ? "active" : ""}">Playlist</a></nav>${warning}<main id="routeView">${content}</main></div>`;
@@ -145,6 +151,79 @@ function fillPlaylistChoices(videoId = "") {
   addChoices.innerHTML = playlists.length ? `<p class="muted">Add to playlists</p>${playlists.map((playlist) => `<label><input type="checkbox" data-add-playlist="${escapeHtml(playlist.id)}" ${videoId && playlist.videoIds.includes(videoId) ? "checked" : ""}> ${escapeHtml(playlist.name)}</label>`).join("")}` : "";
 }
 
+// Open the create or rename dialog with the right title and optional follow-up.
+function openPlaylistDialog({ id = null, videoId = "", returnTo = "" } = {}) {
+  editingPlaylistId = id;
+  pendingPlaylistVideoId = videoId;
+  returnAfterPlaylistCreate = returnTo;
+  document.querySelector("#playlistDialogTitle").textContent = id ? "Rename playlist" : "New playlist";
+  document.querySelector("#playlistName").value = id ? (store.getPlaylist(id)?.name || "") : "";
+  document.querySelector("#playlistMessage").textContent = "";
+  document.querySelector("#playlistDialog").showModal();
+  document.querySelector("#playlistName").focus();
+}
+
+// Let one video belong to any number of playlists.
+function openMembershipDialog(videoId) {
+  membershipVideoId = videoId;
+  const video = store.getVideo(videoId);
+  document.querySelector("#membershipChoices").innerHTML = store.getPlaylists().length
+    ? store.getPlaylists().map((playlist) => `<label><input type="checkbox" data-membership-playlist="${escapeHtml(playlist.id)}" ${playlist.videoIds.includes(videoId) ? "checked" : ""}> ${escapeHtml(playlist.name)}</label>`).join("")
+    : `<p class="muted">No playlists yet. Create one to organize ${escapeHtml(video?.title || "this video")}.</p>`;
+  document.querySelector("#membershipDialog").showModal();
+}
+
+// Create or rename and keep the user's current task moving.
+function savePlaylist(event) {
+  event.preventDefault();
+  const nameInput = document.querySelector("#playlistName");
+  const message = document.querySelector("#playlistMessage");
+  const name = nameInput.value.trim();
+  if (!name) { message.textContent = "Enter a playlist name."; return; }
+  const id = editingPlaylistId;
+  const changed = id ? store.renamePlaylist(id, name) : store.createPlaylist(name);
+  if (!changed) { message.textContent = "That playlist name is empty or already in use."; return; }
+  const created = id ? store.getPlaylist(id) : changed;
+  if (!id && pendingPlaylistVideoId) store.addToPlaylist(created.id, pendingPlaylistVideoId);
+  const followUp = returnAfterPlaylistCreate;
+  const videoId = pendingPlaylistVideoId;
+  document.querySelector("#playlistDialog").close();
+  editingPlaylistId = null; pendingPlaylistVideoId = ""; returnAfterPlaylistCreate = "";
+  render();
+  toast(id ? "Playlist renamed." : "Playlist created.");
+  if (followUp === "membership") openMembershipDialog(videoId);
+  else if (followUp === "add-video") {
+    fillPlaylistChoices(pendingVideo?.id || "");
+    const choice = addChoices.querySelector(`[data-add-playlist="${CSS.escape(created.id)}"]`);
+    if (choice) choice.checked = true;
+    addDialog.showModal();
+  }
+}
+
+// Show a confirmation before deleting a playlist; videos remain in the library.
+let playlistToDelete = "";
+function confirmDeletePlaylist(id) {
+  const playlist = store.getPlaylist(id);
+  if (!playlist) return;
+  playlistToDelete = id;
+  document.querySelector("#confirmTitle").textContent = `Delete “${playlist.name}”?`;
+  document.querySelector("#confirmText").textContent = "The playlist will be deleted. Its videos will stay in your library.";
+  document.querySelector("#confirmDialog").showModal();
+}
+
+function deletePlaylistFromDialog(event) {
+  event.preventDefault();
+  const confirm = event.submitter?.value === "confirm";
+  document.querySelector("#confirmDialog").close();
+  if (!confirm) { playlistToDelete = ""; return; }
+  const removed = store.deletePlaylist(playlistToDelete);
+  playlistToDelete = "";
+  if (!removed) return;
+  if (parseRoute(location.hash).name === "playlist") navigate({ name: "playlists" });
+  render();
+  toast("Playlist deleted.", () => store.restorePlaylist(removed));
+}
+
 // Open the import dialog and reset its one-use preview state.
 function openAddVideo() {
   addForm.reset(); preview.hidden = true; preview.innerHTML = ""; saveVideoButton.disabled = true;
@@ -214,6 +293,13 @@ document.addEventListener("click", (event) => {
   else if (action === "previous-video") moveQueue(-1, true);
   else if (action === "next-video") moveQueue(1, true);
   else if (action === "back-playlists") navigate({ name: "playlists" });
+  else if (action === "new-playlist") openPlaylistDialog();
+  else if (action === "rename-playlist") openPlaylistDialog({ id });
+  else if (action === "delete-playlist") confirmDeletePlaylist(id);
+  else if (action === "playlist-page") { playlistState.page = Number(page); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  else if (action === "add-to-playlist") openMembershipDialog(id);
+  else if (action === "new-playlist-inline") { const videoId = membershipVideoId; document.querySelector("#membershipDialog").close(); openPlaylistDialog({ videoId, returnTo: "membership" }); }
+  else if (action === "new-playlist-from-add") { document.querySelector("#addVideoDialog").close(); openPlaylistDialog({ returnTo: "add-video" }); }
 });
 
 // The global search surface is completed in its product phase.
@@ -228,6 +314,25 @@ function closeSearch() { if (searchOverlay) searchOverlay.hidden = true; }
 document.querySelector("#previewVideo").addEventListener("click", previewVideo);
 addForm.addEventListener("submit", saveVideo);
 addUrl.addEventListener("input", () => { pendingVideo = null; saveVideoButton.disabled = true; });
+document.querySelector("#playlistForm").addEventListener("submit", savePlaylist);
+document.querySelector("#confirmForm").addEventListener("submit", deletePlaylistFromDialog);
+document.querySelector("#membershipForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const selected = new Set([...document.querySelectorAll("[data-membership-playlist]")].filter((input) => input.checked).map((input) => input.dataset.membershipPlaylist));
+  store.getPlaylists().forEach((playlist) => {
+    if (selected.has(String(playlist.id))) store.addToPlaylist(playlist.id, membershipVideoId);
+    else store.removeFromPlaylist(playlist.id, membershipVideoId);
+  });
+  document.querySelector("#membershipDialog").close();
+  render(); toast("Playlist choices saved.");
+});
+document.addEventListener("change", (event) => {
+  if (event.target.id === "playlistSort") { playlistState.sort = event.target.value; playlistState.page = 1; render(); }
+});
+document.addEventListener("click", (event) => {
+  const card = event.target.closest("[data-playlist-open]");
+  if (card && !event.target.closest("[data-action]") && !event.target.closest("details")) navigate({ name: "playlist", id: card.dataset.playlistOpen });
+});
 
 // The API callback is global by design. This one iframe lives outside #app.
 window.onYouTubeIframeAPIReady = () => {
