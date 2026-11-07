@@ -34,30 +34,26 @@
   <section id="playerShell" class="player-shell is-hidden mini" aria-label="Video player">
     <div class="player-viewport"><div id="youtubePlayer"></div></div>
     <div class="mini-bar">
-      <div class="mini-title" id="miniTitle">Nothing is playing</div>
-      <button class="icon-button" data-action="toggle-playback" aria-label="Play or pause">▶</button>
+      <button class="mini-title" id="miniTitle" data-action="expand-player">Nothing is playing</button>
+      <button class="mini-play-button" data-action="toggle-playback" aria-label="Play or pause">Play</button>
       <input class="mini-progress" id="miniProgress" type="range" min="0" max="1000" value="0" aria-label="Seek video">
       <button class="icon-button" data-action="expand-player" aria-label="Expand player">⤢</button>
       <button class="icon-button" data-action="close-player" aria-label="Close player">×</button>
     </div>
-    <div class="expanded-panel">
-      <div class="expanded-heading">
-        <div><h2 id="expandedTitle">Nothing is playing</h2><p id="expandedAuthor"></p></div>
-        <div class="expanded-actions">
-          <button data-action="previous-video" aria-label="Previous video">◀</button>
-          <button data-action="next-video" aria-label="Next video">▶</button>
-          <button data-action="favorite-current" aria-label="Toggle favorite">♡ Favorite</button>
-          <button data-action="add-current-playlist">Add to playlist</button>
-          <button data-action="minimize-player">Minimize</button>
-        </div>
-      </div>
+    <div class="watch-info">
+      <h1 id="expandedTitle">Nothing is playing</h1>
+      <div class="watch-channel-row"><span id="watchAvatar" class="channel-avatar" aria-hidden="true">V</span><span id="expandedAuthor">YouTube</span><button data-action="favorite-current" aria-label="Toggle favorite">♡ Favorite</button><button data-action="add-current-playlist">Add to playlist</button></div>
       <div class="expanded-controls">
         <button data-action="toggle-playback">Play</button>
         <input id="expandedSeek" type="range" min="0" max="0" value="0" aria-label="Seek video">
         <span id="playerTime">0:00 / 0:00</span>
         <label>Volume <input id="playerVolume" type="range" min="0" max="100" value="100"></label>
+        <button data-action="previous-video" aria-label="Previous video">Previous</button>
+        <button data-action="next-video" aria-label="Next video">Next</button>
+        <button data-action="minimize-player">Minimize</button>
       </div>
     </div>
+    <aside id="watchQueuePanel" class="watch-up-next" aria-label="Up next"></aside>
   </section>
 
   <!-- Native dialogs keep small tasks in the current screen. -->

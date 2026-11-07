@@ -38,6 +38,8 @@ let membershipVideoId = "";
 let tagsEditingVideoId = "";
 let sidebarShowAll = false;
 let sidebarDrawerOpen = false;
+let watchNavigationPushed = false;
+let watchLibraryOrder = [];
 
 // Use small original line icons instead of a third-party icon package.
 const iconPaths = {
@@ -62,6 +64,7 @@ try {
 let store;
 store = createStore(storage, { onWarning: (message) => { storageWarning = message; if (store) render(); } });
 homeState.order = shuffle(store.getVideos().map((video) => video.id));
+watchLibraryOrder = shuffle(store.getVideos().map((video) => video.id));
 
 // Keep comments out of video names and text inserted into HTML.
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -86,15 +89,18 @@ function render() {
   if (route.name === "home") content = renderHome({ videos: allVideos(), order: homeState.order, filter: homeState.filter, page: homeState.page });
   else if (route.name === "favorites") content = renderHome({ videos: allVideos().filter((video) => video.favorite), order: homeState.order, filter: homeState.filter, page: homeState.page, title: "Favorites" });
   else if (route.name === "playlists") content = renderPlaylists(store.getPlaylists(), allVideos(), playlistState);
+  else if (route.name === "watch") content = playback.currentId ? "" : `<div class="empty-state"><h2>Nothing is playing</h2><p>Choose a video from Home or a playlist.</p><button data-action="nav-home">Go to Home</button></div>`;
   else {
     if (detailState.id !== route.id) detailState = { id: route.id, query: "", filter: "", sort: "manual", page: 1 };
     const playlist = store.getPlaylist(route.id);
     content = playlist ? renderPlaylistDetail(playlist, allVideos(), detailState) : `<button data-action="back-playlists">← Playlists</button><div class="empty-state"><h3>Playlist not found</h3><button data-action="back-playlists">Back to playlists</button></div>`;
   }
   app.innerHTML = `${warning}<main id="routeView">${content}</main>`;
+  app.classList.toggle("watch-route", route.name === "watch");
   renderSidebar(route);
   if (window.innerWidth < 800) sidebarDrawerOpen = false;
   applySidebarState();
+  syncPlayerRoute(route);
   if (route.name === "home" || route.name === "favorites") {
     const chipHost = app.querySelector("#homeChips");
     if (chipHost) chipHost.innerHTML = renderHomeChips(route.name === "favorites" ? allVideos().filter((video) => video.favorite) : allVideos(), homeState.filter);
@@ -141,12 +147,27 @@ function setupChipScroller() {
 }
 
 // Keep the same iframe and shell, changing only its CSS mode.
-function setPlayerMode(mode) {
-  playback.expanded = mode === "expanded";
-  playerShell.classList.toggle("expanded", playback.expanded);
-  playerShell.classList.toggle("mini", !playback.expanded);
+function syncPlayerRoute(route = parseRoute(location.hash)) {
+  if (!playback.currentId) return;
+  const expanded = route.name === "watch";
+  playerShell.classList.toggle("expanded", expanded);
+  playerShell.classList.toggle("mini", !expanded);
   playerShell.classList.remove("is-hidden");
   document.body.classList.add("has-mini-player");
+  if (!expanded) watchNavigationPushed = false;
+}
+
+function setPlayerMode(mode) {
+  if (mode === "expanded") {
+    if (parseRoute(location.hash).name !== "watch") {
+      watchNavigationPushed = true;
+      navigate({ name: "watch" });
+    }
+    syncPlayerRoute({ name: "watch" });
+  } else if (parseRoute(location.hash).name === "watch") {
+    if (watchNavigationPushed) { watchNavigationPushed = false; history.back(); }
+    else navigate({ name: "home" });
+  }
 }
 
 function updatePlayerLabels() {
@@ -155,10 +176,15 @@ function updatePlayerLabels() {
   document.querySelector("#miniTitle").textContent = video.title;
   document.querySelector("#expandedTitle").textContent = video.title;
   document.querySelector("#expandedAuthor").textContent = video.author || "YouTube";
+  const hue = [...(video.author || "Video Vault")].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 360, 0);
+  const avatar = document.querySelector("#watchAvatar");
+  avatar.textContent = (video.author || "V").trim().charAt(0).toLocaleUpperCase() || "V";
+  avatar.style.setProperty("--avatar-hue", hue);
   document.querySelector("#playerShell [data-action='favorite-current']").textContent = video.favorite ? "♥ Favorited" : "♡ Favorite";
   const hasQueue = playback.queue.length > 1;
   document.querySelector("[data-action='previous-video']").hidden = !hasQueue;
   document.querySelector("[data-action='next-video']").hidden = !hasQueue;
+  renderWatchQueue();
 }
 
 // Start playback from a click and remember the full queue provided by the view.
@@ -170,9 +196,36 @@ function playVideo(videoId, queueIds = [videoId]) {
   playback.currentId = videoId;
   playback.autoplayPlaylistId = null;
   updatePlayerLabels();
-  setPlayerMode("mini");
+  if (parseRoute(location.hash).name !== "watch") {
+    watchNavigationPushed = true;
+    navigate({ name: "watch" });
+  }
+  syncPlayerRoute({ name: "watch" });
   initializePlayer();
   yt.loadVideo(videoId, true);
+}
+
+// Keep Up next tied to the active queue, or offer a shuffled personal fallback.
+function renderWatchQueue() {
+  const panel = document.querySelector("#watchQueuePanel");
+  if (!panel || !playback.currentId) return;
+  const playlist = playback.autoplayPlaylistId ? store.getPlaylist(playback.autoplayPlaylistId) : null;
+  const queued = playback.queue.length > 1;
+  const videos = queued
+    ? playback.queue.map((id) => store.getVideo(id)).filter(Boolean)
+    : watchLibraryOrder.map((id) => store.getVideo(id)).filter((video) => video && video.id !== playback.currentId).slice(0, 12);
+  const heading = queued ? (playlist?.name || "Up next") : "From your library";
+  const toggle = queued && playlist ? `<label><input id="watchAutoplay" type="checkbox" ${playlist.autoplay ? "checked" : ""}> Autoplay Seq</label>` : "";
+  const rows = videos.map((video) => `<button class="queue-row ${video.id === playback.currentId ? "current" : ""}" data-action="watch-queue-video" data-id="${escapeHtml(video.id)}"><img loading="lazy" src="https://i.ytimg.com/vi/${encodeURIComponent(video.id)}/hqdefault.jpg" alt=""><span>${escapeHtml(video.title)}<small>${escapeHtml(video.author || "YouTube")}${video.id === playback.currentId ? " · Playing" : ""}</small></span></button>`).join("");
+  panel.innerHTML = `<div class="queue-heading"><h2>${escapeHtml(heading)}</h2>${toggle}</div><div class="queue-list">${rows || `<p class="muted">No other saved videos yet.</p>`}</div>`;
+}
+
+function playQueueItem(id) {
+  if (!playback.queue.includes(id)) { playVideo(id, [id]); return; }
+  playback.index = playback.queue.indexOf(id);
+  playback.currentId = id;
+  updatePlayerLabels();
+  yt.loadVideo(id, true);
 }
 
 // Playlist playback queues the whole filtered and sorted list, across every page.
@@ -434,6 +487,8 @@ document.addEventListener("click", (event) => {
   else if (action === "favorite") { const video = store.getVideo(id); if (video) { store.updateVideo(id, { favorite: !video.favorite }); render(); toast(video.favorite ? "Removed from Favs." : "Added to Favs."); } }
   else if (action === "previous-video") moveQueue(-1, true);
   else if (action === "next-video") moveQueue(1, true);
+  else if (action === "watch-queue-video") playQueueItem(id);
+  else if (action === "add-current-playlist") { if (playback.currentId) openMembershipDialog(playback.currentId); }
   else if (action === "back-playlists") navigate({ name: "playlists" });
   else if (action === "rename-current-playlist") { const route = parseRoute(location.hash); if (route.name === "playlist") openPlaylistDialog({ id: route.id }); }
   else if (action === "remove-membership") {
@@ -508,6 +563,10 @@ document.addEventListener("change", (event) => {
     const route = parseRoute(location.hash);
     if (route.name === "playlist") store.setAutoplay(route.id, event.target.checked);
     render();
+  }
+  if (event.target.id === "watchAutoplay" && playback.autoplayPlaylistId) {
+    store.setAutoplay(playback.autoplayPlaylistId, event.target.checked);
+    renderWatchQueue();
   }
 });
 document.addEventListener("input", (event) => {
