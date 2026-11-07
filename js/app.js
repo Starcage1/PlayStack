@@ -1,10 +1,11 @@
 import { createStore } from "./store.js";
 import { extractVideoId } from "./video-id.js";
-import { shuffle } from "./utils.js";
+import { filterAndSortVideos, shuffle } from "./utils.js";
 import { navigate, parseRoute, watchRoute } from "./router.js";
 import * as yt from "./player.js";
 import { formatTime, renderHome, renderHomeChips } from "./views/home.js";
 import { renderPlaylists } from "./views/playlists.js";
+import { renderPlaylistDetail } from "./views/playlist-detail.js";
 
 const app = document.querySelector("#app");
 const playerShell = document.querySelector("#playerShell");
@@ -18,7 +19,8 @@ const saveVideoButton = document.querySelector("#saveVideo");
 const addChoices = document.querySelector("#addPlaylistChoices");
 const homeState = { filter: "", page: 1, order: [] };
 const playlistState = { sort: "recent", page: 1 };
-const playback = { queue: [], index: 0, currentId: "", expanded: false, seeking: false, miniSeeking: false };
+let detailState = { id: "", query: "", filter: "", sort: "manual", page: 1 };
+const playback = { queue: [], index: 0, currentId: "", autoplayPlaylistId: null, expanded: false, seeking: false, miniSeeking: false };
 let toastTimer = 0;
 let searchTimer = 0;
 let pendingVideo = null;
@@ -58,7 +60,11 @@ function render() {
   let content = "";
   if (route.name === "home") content = renderHome({ videos: allVideos(), order: homeState.order, filter: homeState.filter, page: homeState.page });
   else if (route.name === "playlists") content = renderPlaylists(store.getPlaylists(), allVideos(), playlistState);
-  else content = `<button data-action="back-playlists">← Playlists</button><div class="empty-state"><h3>Playlist not found</h3><button data-action="back-playlists">Back to playlists</button></div>`;
+  else {
+    if (detailState.id !== route.id) detailState = { id: route.id, query: "", filter: "", sort: "manual", page: 1 };
+    const playlist = store.getPlaylist(route.id);
+    content = playlist ? renderPlaylistDetail(playlist, allVideos(), detailState) : `<button data-action="back-playlists">← Playlists</button><div class="empty-state"><h3>Playlist not found</h3><button data-action="back-playlists">Back to playlists</button></div>`;
+  }
   app.innerHTML = `<div class="app-frame"><header class="topbar"><h1 class="brand">VIDEO VAULT</h1><button class="icon-button" data-action="open-search" aria-label="Search your vault">⌕</button></header>
     <nav class="tabs" aria-label="Main navigation"><a href="#/home" class="${route.name === "home" ? "active" : ""}">Home</a><a href="#/playlists" class="${route.name !== "home" ? "active" : ""}">Playlist</a></nav>${warning}<main id="routeView">${content}</main></div>`;
   if (route.name === "home") {
@@ -95,9 +101,22 @@ function playVideo(videoId, queueIds = [videoId]) {
   playback.queue = ids;
   playback.index = ids.indexOf(videoId);
   playback.currentId = videoId;
+  playback.autoplayPlaylistId = null;
   updatePlayerLabels();
   setPlayerMode("mini");
   yt.loadVideo(videoId, true);
+}
+
+// Playlist playback queues the whole filtered and sorted list, across every page.
+function playFromCurrentScreen(videoId) {
+  const route = parseRoute(location.hash);
+  if (route.name !== "playlist") { playVideo(videoId, [videoId]); return; }
+  const playlist = store.getPlaylist(route.id);
+  if (!playlist) { playVideo(videoId, [videoId]); return; }
+  const videos = playlist.videoIds.map((id) => store.getVideo(id)).filter(Boolean);
+  const visible = filterAndSortVideos(videos, { query: detailState.query, filter: detailState.filter, sort: detailState.sort, order: playlist.videoIds });
+  playVideo(videoId, visible.map((video) => video.id));
+  playback.autoplayPlaylistId = playlist.id;
 }
 
 // Learn missing title, channel, and duration when YouTube provides its player data.
@@ -148,7 +167,8 @@ function moveQueue(step, autoplay = true) {
 // Create a playlist checkbox for the Add video dialog.
 function fillPlaylistChoices(videoId = "") {
   const playlists = store.getPlaylists();
-  addChoices.innerHTML = playlists.length ? `<p class="muted">Add to playlists</p>${playlists.map((playlist) => `<label><input type="checkbox" data-add-playlist="${escapeHtml(playlist.id)}" ${videoId && playlist.videoIds.includes(videoId) ? "checked" : ""}> ${escapeHtml(playlist.name)}</label>`).join("")}` : "";
+  const route = parseRoute(location.hash);
+  addChoices.innerHTML = playlists.length ? `<p class="muted">Add to playlists</p>${playlists.map((playlist) => `<label><input type="checkbox" data-add-playlist="${escapeHtml(playlist.id)}" ${((videoId && playlist.videoIds.includes(videoId)) || (route.name === "playlist" && String(playlist.id) === route.id)) ? "checked" : ""}> ${escapeHtml(playlist.name)}</label>`).join("")}` : "";
 }
 
 // Open the create or rename dialog with the right title and optional follow-up.
@@ -227,7 +247,13 @@ function deletePlaylistFromDialog(event) {
 // Open the import dialog and reset its one-use preview state.
 function openAddVideo() {
   addForm.reset(); preview.hidden = true; preview.innerHTML = ""; saveVideoButton.disabled = true;
-  addMessage.textContent = ""; pendingVideo = null; fillPlaylistChoices(); addDialog.showModal(); addUrl.focus();
+  addMessage.textContent = ""; pendingVideo = null; fillPlaylistChoices();
+  const route = parseRoute(location.hash);
+  if (route.name === "playlist") {
+    const choice = addChoices.querySelector(`[data-add-playlist="${CSS.escape(route.id)}"]`);
+    if (choice) choice.checked = true;
+  }
+  addDialog.showModal(); addUrl.focus();
 }
 
 // Fetch only YouTube's public oEmbed title and author; importing still works offline.
@@ -272,7 +298,7 @@ document.addEventListener("click", (event) => {
   const videoCardElement = event.target.closest("[data-video-id]");
   if (videoCardElement && !actionButton && !event.target.closest("details")) {
     const id = videoCardElement.dataset.videoId;
-    playVideo(id, [id]);
+    playFromCurrentScreen(id);
     return;
   }
   if (!actionButton) return;
@@ -290,13 +316,28 @@ document.addEventListener("click", (event) => {
   else if (action === "close-player") { yt.stop(); playerShell.classList.add("is-hidden"); playback.currentId = ""; playback.queue = []; }
   else if (action === "toggle-playback") { if (yt.getState() === (window.YT?.PlayerState?.PLAYING ?? 1)) yt.pause(); else yt.play(); }
   else if (action === "favorite-current") { const video = getCurrent(); if (video) store.updateVideo(video.id, { favorite: !video.favorite }); render(); updatePlayerLabels(); }
+  else if (action === "favorite") { const video = store.getVideo(id); if (video) { store.updateVideo(id, { favorite: !video.favorite }); render(); toast(video.favorite ? "Removed from Favs." : "Added to Favs."); } }
   else if (action === "previous-video") moveQueue(-1, true);
   else if (action === "next-video") moveQueue(1, true);
   else if (action === "back-playlists") navigate({ name: "playlists" });
+  else if (action === "rename-current-playlist") { const route = parseRoute(location.hash); if (route.name === "playlist") openPlaylistDialog({ id: route.id }); }
+  else if (action === "remove-membership") {
+    const route = parseRoute(location.hash);
+    const removed = route.name === "playlist" ? store.removeFromPlaylist(route.id, id) : null;
+    render();
+    if (removed) toast("Video removed from playlist.", () => store.restoreMembership(removed));
+  }
+  else if (action === "delete-video") {
+    const removed = store.deleteVideo(id);
+    homeState.order = homeState.order.filter((videoId) => videoId !== id);
+    render();
+    if (removed) toast("Video deleted from your library.", () => { store.restoreVideo(removed); homeState.order.unshift(id); });
+  }
   else if (action === "new-playlist") openPlaylistDialog();
   else if (action === "rename-playlist") openPlaylistDialog({ id });
   else if (action === "delete-playlist") confirmDeletePlaylist(id);
   else if (action === "playlist-page") { playlistState.page = Number(page); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  else if (action === "detail-page") { detailState.page = Number(page); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
   else if (action === "add-to-playlist") openMembershipDialog(id);
   else if (action === "new-playlist-inline") { const videoId = membershipVideoId; document.querySelector("#membershipDialog").close(); openPlaylistDialog({ videoId, returnTo: "membership" }); }
   else if (action === "new-playlist-from-add") { document.querySelector("#addVideoDialog").close(); openPlaylistDialog({ returnTo: "add-video" }); }
@@ -328,6 +369,22 @@ document.querySelector("#membershipForm").addEventListener("submit", (event) => 
 });
 document.addEventListener("change", (event) => {
   if (event.target.id === "playlistSort") { playlistState.sort = event.target.value; playlistState.page = 1; render(); }
+  if (event.target.id === "playlistFilter") { detailState.filter = event.target.value; detailState.page = 1; render(); }
+  if (event.target.id === "playlistVideoSort") { detailState.sort = event.target.value; detailState.page = 1; render(); }
+  if (event.target.id === "autoplayToggle") {
+    const route = parseRoute(location.hash);
+    if (route.name === "playlist") store.setAutoplay(route.id, event.target.checked);
+    render();
+  }
+});
+document.addEventListener("input", (event) => {
+  if (event.target.id === "playlistSearch") {
+    detailState.query = event.target.value;
+    detailState.page = 1;
+    const cursor = event.target.selectionStart;
+    clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => { render(); const input = document.querySelector("#playlistSearch"); input?.focus(); input?.setSelectionRange(cursor, cursor); }, 150);
+  }
 });
 document.addEventListener("click", (event) => {
   const card = event.target.closest("[data-playlist-open]");
@@ -340,8 +397,7 @@ window.onYouTubeIframeAPIReady = () => {
     onReady: () => { yt.setVolume(store.getState().settings.volume); updatePlayerControls(); },
     onStateChange: (state) => {
       if (state === (window.YT?.PlayerState?.ENDED ?? 0)) {
-        const route = parseRoute(location.hash);
-        const playlist = route.name === "playlist" ? store.getPlaylist(route.id) : null;
+        const playlist = playback.autoplayPlaylistId ? store.getPlaylist(playback.autoplayPlaylistId) : null;
         if (playlist?.autoplay && playback.index < playback.queue.length - 1) moveQueue(1, true);
       }
       updatePlayerControls();

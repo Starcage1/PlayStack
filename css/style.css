@@ -37,6 +37,12 @@ a { color: inherit; text-decoration: none; }
 .tabs a.active { color: white; background: var(--purple-soft); }
 .screen-heading, .toolbar, .pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .screen-heading h2 { margin: 0; font-size: clamp(1.55rem, 3vw, 2rem); }
+.detail-heading { display: flex; align-items: center; gap: 16px; }
+.playlist-title-button { padding: 0; border: 0; background: transparent; font-size: clamp(1.55rem, 3vw, 2rem); font-weight: 700; text-align: left; }
+.detail-toolbar { justify-content: flex-start; }
+.detail-search { flex: 1 1 240px; }
+.toggle-label { display: flex; gap: 7px; align-items: center; min-height: 44px; color: var(--muted); }
+.toggle-label input { width: 20px; min-height: 20px; accent-color: var(--purple); }
 .toolbar { flex-wrap: wrap; margin: 16px 0; }
 .toolbar-group { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
 .chip-row { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 12px; scrollbar-width: thin; }
