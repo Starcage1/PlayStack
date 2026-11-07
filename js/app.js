@@ -6,6 +6,7 @@ import * as yt from "./player.js";
 import { formatTime, renderHome, renderHomeChips } from "./views/home.js";
 import { renderPlaylists } from "./views/playlists.js";
 import { renderPlaylistDetail } from "./views/playlist-detail.js";
+import { searchLibrary } from "./search.js";
 
 const app = document.querySelector("#app");
 const playerShell = document.querySelector("#playerShell");
@@ -30,6 +31,7 @@ let editingPlaylistId = null;
 let pendingPlaylistVideoId = "";
 let returnAfterPlaylistCreate = "";
 let membershipVideoId = "";
+let tagsEditingVideoId = "";
 
 // Read the browser's storage safely; Store switches to memory if it fails.
 let storage = null;
@@ -193,6 +195,24 @@ function openMembershipDialog(videoId) {
   document.querySelector("#membershipDialog").showModal();
 }
 
+// Edit a video's tags without changing its playlist memberships.
+function openTagsDialog(videoId) {
+  const video = store.getVideo(videoId);
+  if (!video) return;
+  tagsEditingVideoId = videoId;
+  document.querySelector("#editTagsInput").value = video.tags.join(", ");
+  document.querySelector("#tagsDialog").showModal();
+}
+
+function saveTags(event) {
+  event.preventDefault();
+  const tags = document.querySelector("#editTagsInput").value.split(",").map((tag) => tag.trim()).filter(Boolean);
+  store.updateVideo(tagsEditingVideoId, { tags });
+  tagsEditingVideoId = "";
+  document.querySelector("#tagsDialog").close();
+  render(); toast("Tags updated.");
+}
+
 // Create or rename and keep the user's current task moving.
 function savePlaylist(event) {
   event.preventDefault();
@@ -339,6 +359,9 @@ document.addEventListener("click", (event) => {
   else if (action === "playlist-page") { playlistState.page = Number(page); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
   else if (action === "detail-page") { detailState.page = Number(page); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
   else if (action === "add-to-playlist") openMembershipDialog(id);
+  else if (action === "edit-tags") openTagsDialog(id);
+  else if (action === "search-play-video") { closeSearch(); playVideo(id, [id]); }
+  else if (action === "search-open-playlist") { closeSearch(); navigate({ name: "playlist", id }); }
   else if (action === "new-playlist-inline") { const videoId = membershipVideoId; document.querySelector("#membershipDialog").close(); openPlaylistDialog({ videoId, returnTo: "membership" }); }
   else if (action === "new-playlist-from-add") { document.querySelector("#addVideoDialog").close(); openPlaylistDialog({ returnTo: "add-video" }); }
 });
@@ -347,9 +370,22 @@ document.addEventListener("click", (event) => {
 function openSearch() {
   searchOverlay = document.querySelector("#searchOverlay");
   searchOverlay.hidden = false;
-  document.querySelector("#globalSearch").focus();
+  const input = document.querySelector("#globalSearch");
+  input.value = "";
+  document.querySelector("#searchResults").innerHTML = `<p class="muted">Search by video title, channel, tag, or playlist name.</p>`;
+  input.focus();
 }
 function closeSearch() { if (searchOverlay) searchOverlay.hidden = true; }
+
+// Show video and playlist matches together as the user types.
+function renderSearchResults(query) {
+  const results = searchLibrary(allVideos(), store.getPlaylists(), query);
+  const videoRows = results.videos.map((video) => `<button class="search-result" data-action="search-play-video" data-id="${escapeHtml(video.id)}">${escapeHtml(video.title)}<small>${escapeHtml(video.author || "YouTube video")} · ${(video.tags || []).map(escapeHtml).join(", ")}</small></button>`).join("");
+  const playlistRows = results.playlists.map((playlist) => `<button class="search-result" data-action="search-open-playlist" data-id="${escapeHtml(playlist.id)}">${escapeHtml(playlist.name)}<small>${playlist.videoIds.length} ${playlist.videoIds.length === 1 ? "video" : "videos"}</small></button>`).join("");
+  document.querySelector("#searchResults").innerHTML = results.videos.length || results.playlists.length
+    ? `${videoRows ? `<section class="search-group"><h3>Videos</h3>${videoRows}</section>` : ""}${playlistRows ? `<section class="search-group"><h3>Playlists</h3>${playlistRows}</section>` : ""}`
+    : `<div class="empty-state"><h3>No results</h3><p>Try a different title, channel, tag, or playlist name.</p></div>`;
+}
 
 // Wire the import preview and native dialog form.
 document.querySelector("#previewVideo").addEventListener("click", previewVideo);
@@ -357,6 +393,7 @@ addForm.addEventListener("submit", saveVideo);
 addUrl.addEventListener("input", () => { pendingVideo = null; saveVideoButton.disabled = true; });
 document.querySelector("#playlistForm").addEventListener("submit", savePlaylist);
 document.querySelector("#confirmForm").addEventListener("submit", deletePlaylistFromDialog);
+document.querySelector("#tagsForm").addEventListener("submit", saveTags);
 document.querySelector("#membershipForm").addEventListener("submit", (event) => {
   event.preventDefault();
   const selected = new Set([...document.querySelectorAll("[data-membership-playlist]")].filter((input) => input.checked).map((input) => input.dataset.membershipPlaylist));
@@ -384,6 +421,11 @@ document.addEventListener("input", (event) => {
     const cursor = event.target.selectionStart;
     clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => { render(); const input = document.querySelector("#playlistSearch"); input?.focus(); input?.setSelectionRange(cursor, cursor); }, 150);
+  }
+  if (event.target.id === "globalSearch") {
+    const query = event.target.value;
+    clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => renderSearchResults(query), 150);
   }
 });
 document.addEventListener("click", (event) => {

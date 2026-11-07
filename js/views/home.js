@@ -25,7 +25,10 @@ export function videoCard(video, { inPlaylist = false } = {}) {
 // Render the shuffled home list and its bottom pagination.
 export function renderHome({ videos, order, filter = "", page = 1, query = "" }) {
   const ordered = order.map((id) => videos.find((video) => video.id === id)).filter(Boolean);
-  const result = filterAndSortVideos(ordered, { filter, query });
+  let source = ordered;
+  if (filter === "Favs") source = source.filter((video) => video.favorite);
+  else if (filter === "Recently added") source = [...source].sort((a, b) => Date.parse(b.addedAt) - Date.parse(a.addedAt));
+  const result = filterAndSortVideos(source, { filter: ["Favs", "Recently added"].includes(filter) ? "" : filter, query });
   const pages = paginate(result, page, VIDEO_PAGE_SIZE);
   const cards = pages.items.map((video) => videoCard(video)).join("");
   return `<section class="screen-heading"><div><h2>Your videos</h2><p class="muted">A personal place for the videos you choose.</p></div>

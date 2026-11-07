@@ -74,6 +74,14 @@
     </form>
   </dialog>
 
+  <dialog id="tagsDialog" class="dialog-card">
+    <form id="tagsForm" method="dialog">
+      <div class="dialog-heading"><h2>Edit tags</h2><button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">×</button></div>
+      <label>Tags, separated by commas<input id="editTagsInput" placeholder="Music, Games"></label>
+      <div class="dialog-actions"><button type="button" class="secondary" data-action="close-dialog">Cancel</button><button type="submit">Save tags</button></div>
+    </form>
+  </dialog>
+
   <dialog id="confirmDialog" class="dialog-card">
     <form id="confirmForm" method="dialog">
       <h2 id="confirmTitle">Delete playlist?</h2><p id="confirmText">This action cannot be undone.</p>
