@@ -198,6 +198,9 @@ def stt():
         })
     except GnaniRequestError as exc:
         return jsonify({"error": exc.message}), exc.status
+    except Exception as exc:
+        app.logger.error("Gnani STT handler failed (%s)", type(exc).__name__)
+        return jsonify({"error": "Voice recognition failed inside the local server. Check the server terminal."}), 500
 
 
 @app.post("/api/tts")
@@ -252,6 +255,9 @@ def tts():
         return app.response_class(audio_bytes, mimetype="audio/wav")
     except GnaniRequestError as exc:
         return jsonify({"error": exc.message}), exc.status
+    except Exception as exc:
+        app.logger.error("Gnani TTS handler failed (%s)", type(exc).__name__)
+        return jsonify({"error": "The spoken reply failed inside the local server. Check the server terminal."}), 500
 
 
 @app.get("/")

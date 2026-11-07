@@ -215,6 +215,17 @@ body.has-mini-player:not(.watch-route) .toast-region { bottom: 280px; }
 .voice-text-form label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; }
 .voice-text-form > div { display: flex; gap: 8px; }
 .voice-text-form input { min-width: 0; min-height: 42px; flex: 1; }
+.voice-debug { width: min(430px, calc(100vw - 32px)); max-height: min(62vh, 620px); overflow: auto; padding: 14px; border: 1px solid #695c98; border-radius: 14px; background: #17151d; box-shadow: 0 10px 30px #000a; }
+.voice-debug[hidden] { display: none; }
+.voice-debug h2 { margin: 0 0 10px; font-size: 15px; }
+.voice-meter-row { display: grid; grid-template-columns: auto minmax(70px, 1fr) auto; align-items: center; gap: 9px; margin-bottom: 10px; font-size: 12px; }
+.voice-meter-row progress { width: 100%; height: 12px; accent-color: var(--accent-hover); }
+.voice-debug-grid { display: grid; gap: 6px; margin: 0; }
+.voice-debug-grid > div { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 8px; padding: 6px; border-radius: 6px; background: #222027; }
+.voice-debug-grid dt { color: var(--muted); font-size: 11px; }
+.voice-debug-grid dd { min-width: 0; max-height: 110px; overflow: auto; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.4 ui-monospace, Consolas, monospace; }
+.voice-debug-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.voice-debug-toggle { margin-top: 12px; }
 @keyframes voice-pulse { from { box-shadow: 0 0 0 0 #927df455, 0 8px 24px #0008; } to { box-shadow: 0 0 0 10px #927df400, 0 8px 24px #0008; } }
 
 /* The YouTube iframe stays in this shell while the route changes. */

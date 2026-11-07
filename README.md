@@ -31,6 +31,8 @@ python check_gnani.py
 
 The check asks Timbre to synthesize “Namaste, yeh ek test hai” into `test.wav`, then asks Prisma to transcribe that file. It prints the transcript, never the key. It reports common authentication, credit, permission, and rate-limit errors in plain language. Do this before continuing with the microphone and command UI phase.
 
+To send an existing browser recording directly to STT (a real API request that may use account credits), run `python check_gnani.py --stt-file path\to\recording.wav`. It prints the HTTP status and raw response, without printing the API key.
+
 For local backend work without sending audio to Gnani, set `MOCK_GNANI=1` in `.env` and restart the server. `/api/stt` returns a canned command, `/api/tts` returns a short beep, and the page displays a visible **MOCK MODE** badge. Mock mode is development-only. Set `MOCK_GNANI=0` for real API requests.
 
 ## Server endpoints
@@ -53,7 +55,9 @@ node --test
 
 ## Voice slice
 
-The microphone button records up to eight seconds, stops after about 1.2 seconds of silence, resamples the audio to mono 16 kHz PCM WAV, and sends it to the local `/api/stt` endpoint. Recognized Hinglish, English, or Devanagari commands are matched against a small safe command list, applied through the app's existing player and storage functions, and answered through `/api/tts`. Unsupported requests are not executed. Run the Python server rather than opening the HTML file directly.
+The microphone button records up to ten seconds, stops after 1.2 seconds of silence only after speech is detected, resamples the audio to mono 16 kHz PCM WAV, checks the WAV header, and sends it to the local `/api/stt` endpoint. Recognized Hinglish, English, or Devanagari commands are matched against a small safe command list, applied through the app's existing player and storage functions, and answered through `/api/tts`. Unsupported requests are not executed. Run the Python server rather than opening the HTML file directly.
+
+For voice troubleshooting, open `http://127.0.0.1:8000/?voicedebug=1` in a new browser tab. The debug panel shows microphone permission, input level, recording length and peak, WAV header details, the local STT request and response, transcript, parsed intent, and timings. It can play or download the latest recording. The panel and console diagnostics do not include the Gnani key. A saved recording can be checked against STT separately with the command above.
 
 The mic can be dragged and its position is saved in browser storage. Press `V` to start or stop a recording when you are not typing. The “What can I say?” panel also runs typed commands through the same parser and actions, so it remains useful if the mic or network is unavailable. While recording and speaking, the video volume is lowered to 15% of its saved level and restored afterward. The spoken response can fail offline, but the typed command still runs locally.
 

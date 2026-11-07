@@ -724,6 +724,7 @@ voiceUI = initVoiceUI({
       routeName: parseRoute(location.hash).name,
       currentVideoId: playback.currentId
     });
+    voiceUI?.reportIntent(parsed);
     const result = await voiceActions.execute(parsed);
     const reply = responseFor(parsed, result);
     toast(reply);

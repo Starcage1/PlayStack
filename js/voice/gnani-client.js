@@ -1,16 +1,38 @@
 // Browser requests go to our local server; the API key never reaches this file.
-export async function transcribe(blob, keyterms = []) {
+export async function transcribe(blob, keyterms = [], { onRequest = () => {} } = {}) {
   const form = new FormData();
   form.append("audio_file", blob, "voice-command.wav");
   form.append("keyterms", JSON.stringify(keyterms.slice(0, 200)));
+  const requestInfo = {
+    method: "POST", url: "/api/stt", fieldName: "audio_file", filename: "voice-command.wav",
+    contentType: blob.type || "audio/wav", bytes: blob.size, keytermsCount: Math.min(200, keyterms.length),
+    keyterms: keyterms.slice(0, 200),
+    serverProfile: "prisma-v3.0 / indic-auto / transliterate"
+  };
+  onRequest(requestInfo);
   let response;
   try { response = await fetch("/api/stt", { method: "POST", body: form }); }
-  catch (_) { throw new Error("Voice service is offline. Start the local app server and check your connection."); }
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "Speech recognition failed. Try again.");
+  catch (_) {
+    const error = new Error("Voice service is offline. Start the local app server and check your connection.");
+    error.requestInfo = requestInfo;
+    throw error;
+  }
+  const rawResponse = await response.text();
+  let result = {};
+  try { result = JSON.parse(rawResponse); } catch (_) { /* Preserve the raw server response for diagnostics. */ }
+  if (!response.ok) {
+    const error = new Error(result.error || `Speech recognition failed (HTTP ${response.status}).`);
+    error.httpStatus = response.status;
+    error.rawResponse = rawResponse;
+    error.requestInfo = requestInfo;
+    throw error;
+  }
   return {
     transcript: typeof result.transcript === "string" ? result.transcript : "",
-    detectedLanguageCode: result.detected_language_code || ""
+    detectedLanguageCode: result.detected_language_code || "",
+    httpStatus: response.status,
+    rawResponse,
+    requestInfo
   };
 }
 

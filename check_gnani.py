@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import argparse
 import sys
 from pathlib import Path
 
@@ -30,7 +31,52 @@ def show_http_error(status: int) -> str:
     return f"Gnani returned HTTP {status}. Check the endpoint and account settings."
 
 
-def main() -> int:
+def transcribe_saved_wav(path: Path, headers: dict[str, str]) -> int:
+    """Send a saved WAV using the same form fields as the app server."""
+    if not path.is_file():
+        print(f"WAV file not found: {path}")
+        return 1
+    if path.suffix.lower() != ".wav":
+        print("The --stt-file argument must point to a .wav file.")
+        return 1
+    stt_form = {"model": "prisma-v3.0", "language_code": "indic-auto", "format": "transliterate"}
+    print(f"Sending {path.name} to Gnani Prisma STT…")
+    try:
+        with path.open("rb") as audio_file:
+            response = requests.post(
+                STT_URL,
+                headers=headers,
+                data=stt_form,
+                files={"audio_file": (path.name, audio_file, "audio/wav")},
+                timeout=TIMEOUT,
+            )
+    except requests.RequestException as exc:
+        print(f"Could not reach Gnani STT ({type(exc).__name__}). Check your connection.")
+        return 1
+
+    print(f"HTTP status: {response.status_code}")
+    print("Raw response:")
+    print(response.text or "(empty response)")
+    if not response.ok:
+        print(show_http_error(response.status_code))
+        return 1
+    try:
+        result = response.json()
+    except requests.JSONDecodeError:
+        print("Gnani returned a non-JSON STT response.")
+        return 1
+    if not isinstance(result, dict) or result.get("success") is False or isinstance(result.get("detail"), dict):
+        print("Gnani reported an STT error. Check the raw response above.")
+        return 1
+    transcript = result.get("transcript", "")
+    print(f"Transcript: {transcript if isinstance(transcript, str) and transcript else '(empty transcript)'}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Check Gnani TTS/STT or test a saved WAV file.")
+    parser.add_argument("--stt-file", type=Path, help="Send this WAV directly to Prisma STT instead of generating a test phrase.")
+    args = parser.parse_args(argv)
     load_dotenv(ROOT / ".env")
     key = os.getenv("GNANI_API_KEY", "").strip()
     if not key:
@@ -38,6 +84,9 @@ def main() -> int:
         return 1
 
     headers = {"X-API-Key-ID": key}
+    if args.stt_file:
+        return transcribe_saved_wav(args.stt_file.expanduser().resolve(), headers)
+
     tts_body = {
         "text": TEST_PHRASE,
         "voice": "Poorvi",
