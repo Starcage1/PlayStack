@@ -59,6 +59,12 @@ node --test
 
 Open **Commands** in the sidebar, press **?**, or say “help” to browse voice examples and keyboard shortcuts. The page is generated from the command registry; use its search, category filters, and **Try it** buttons to run examples through the typed-command path. Current commands cover selecting and finding videos, random playback, search and navigation, player modes, sleep timers, and library information.
 
+## Importing videos
+
+Use **+ Add video** to paste one or many YouTube links or a block of copied text. Review the deduplicated list, select which videos to add, optionally apply tags and playlist membership, then use **Add selected videos**. Public titles and channels are previewed with oEmbed; if that lookup fails, a video can still be selected as **Untitled video**. The File tab reads .txt, .csv, .json, .html, and .md bookmark exports, including Takeout CSV files with a “Video ID” column. Drop a link or supported file onto the window to open the importer. The bookmarklet link can be dragged to the browser bookmarks bar.
+
+Links that also contain a playlist ID expose a **Playlist found** button. It opens the Playlist tab with that URL prefilled for the playlist-import phase; importing playlist contents through YouTube Data API is not included yet.
+
 ## Voice slice
 
 The microphone button records up to ten seconds, stops after 1.2 seconds of silence only after speech is detected, resamples the audio to mono 16 kHz PCM WAV, checks the WAV header, and sends it to the local `/api/stt` endpoint. Recognized Hinglish, English, or Devanagari commands are matched against a small safe command list, applied through the app's existing player and storage functions, and answered through `/api/tts`. Unsupported requests are not executed. Run the Python server rather than opening the HTML file directly.

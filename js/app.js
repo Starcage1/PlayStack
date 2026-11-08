@@ -1,8 +1,8 @@
 import { createStore } from "./store.js";
-import { extractVideoId } from "./video-id.js";
 import { filterAndSortVideos, shuffle, paginate, sortPlaylists } from "./utils.js";
 import { searchLibrary, rankVideoMatches } from "./search.js";
 import { VIDEO_PAGE_SIZE, PLAYLIST_PAGE_SIZE } from "./config.js";
+import { extractYouTubeLinks, extractPlaylistId, extractImportFileLinks, previewVideoImports, saveVideoImportBatch } from "./importer.js";
 import { navigate, parseRoute, watchRoute } from "./router.js";
 import * as yt from "./player.js";
 import { formatTime, renderHome, renderHomeChips } from "./views/home.js";
@@ -26,11 +26,16 @@ const playerShell = document.querySelector("#playerShell");
 const toastRegion = document.querySelector("#toastRegion");
 const addDialog = document.querySelector("#addVideoDialog");
 const addForm = document.querySelector("#addVideoForm");
-const addUrl = document.querySelector("#addVideoUrl");
+const addLinks = document.querySelector("#addVideoLinks");
 const addMessage = document.querySelector("#addVideoMessage");
 const preview = document.querySelector("#videoPreview");
 const saveVideoButton = document.querySelector("#saveVideo");
 const addChoices = document.querySelector("#addPlaylistChoices");
+const importProgress = document.querySelector("#importProgress");
+const importProgressBar = document.querySelector("#importProgressBar");
+const importProgressText = document.querySelector("#importProgressText");
+const importFile = document.querySelector("#importFile");
+const importPlaylistUrl = document.querySelector("#importPlaylistUrl");
 const homeState = { filter: "", page: 1, order: [] };
 const commandsState = { query: "", category: "", tab: "voice" };
 const playlistState = { sort: "recent", page: 1 };
@@ -38,10 +43,12 @@ let detailState = { id: "", query: "", filter: "", sort: "manual", page: 1 };
 const playback = { queue: [], index: 0, currentId: "", autoplayPlaylistId: null, expanded: false, seeking: false, miniSeeking: false };
 let toastTimer = 0;
 let searchTimer = 0;
-let pendingVideo = null;
+let pendingVideos = [];
+let importTab = "links";
 let storageWarning = "";
 let youtubeApiReady = false;
 let playerCreated = false;
+let handledImportHash = "";
 let editingPlaylistId = null;
 let pendingPlaylistVideoId = "";
 let returnAfterPlaylistCreate = "";
@@ -106,6 +113,7 @@ function render() {
   const warning = storageWarning ? `<p class="storage-warning">${escapeHtml(storageWarning)}</p>` : "";
   let content = "";
   if (route.name === "home") content = renderHome({ videos: allVideos(), order: homeState.order, filter: homeState.filter, page: homeState.page });
+  else if (route.name === "import") content = renderHome({ videos: allVideos(), order: homeState.order, filter: homeState.filter, page: homeState.page });
   else if (route.name === "favorites") content = renderHome({ videos: allVideos().filter((video) => video.favorite), order: homeState.order, filter: homeState.filter, page: homeState.page, title: "Favorites" });
   else if (route.name === "playlists") content = renderPlaylists(store.getPlaylists(), allVideos(), playlistState);
   else if (route.name === "commands") content = renderCommands(COMMANDS, commandsState);
@@ -125,12 +133,16 @@ function render() {
   if (window.innerWidth < 800) sidebarDrawerOpen = false;
   applySidebarState();
   syncPlayerRoute(route);
-  if (route.name === "home" || route.name === "favorites") {
+  if (route.name === "home" || route.name === "favorites" || route.name === "import") {
     const chipHost = app.querySelector("#homeChips");
     if (chipHost) chipHost.innerHTML = renderHomeChips(route.name === "favorites" ? allVideos().filter((video) => video.favorite) : allVideos(), homeState.filter);
     setupChipScroller();
   }
   if (playback.currentId) updatePlayerLabels();
+  if (route.name === "import" && handledImportHash !== location.hash) {
+    handledImportHash = location.hash;
+    window.setTimeout(() => openAddVideo(route.url), 0);
+  }
 }
 
 // Render fixed navigation separately from the routed page content.
@@ -565,9 +577,10 @@ function savePlaylist(event) {
   toast(id ? "Playlist renamed." : "Playlist created.");
   if (followUp === "membership") openMembershipDialog(videoId);
   else if (followUp === "add-video") {
-    fillPlaylistChoices(pendingVideo?.id || "");
-    const choice = addChoices.querySelector(`[data-add-playlist="${CSS.escape(created.id)}"]`);
-    if (choice) choice.checked = true;
+    const selected = new Set([...addChoices.querySelectorAll("[data-add-playlist]:checked")].map((input) => input.dataset.addPlaylist));
+    fillPlaylistChoices();
+    selected.add(String(created.id));
+    addChoices.querySelectorAll("[data-add-playlist]").forEach((choice) => { choice.checked = selected.has(choice.dataset.addPlaylist); });
     addDialog.showModal();
   }
 }
@@ -597,51 +610,92 @@ function deletePlaylistFromDialog(event) {
 }
 
 // Open the import dialog and reset its one-use preview state.
-function openAddVideo() {
+function openAddVideo(prefill = "") {
   addForm.reset(); preview.hidden = true; preview.innerHTML = ""; saveVideoButton.disabled = true;
-  addMessage.textContent = ""; pendingVideo = null; fillPlaylistChoices();
+  importProgress.hidden = true; importProgressBar.value = 0;
+  addMessage.textContent = ""; pendingVideos = []; fillPlaylistChoices();
+  const playlistOnly = Boolean(extractPlaylistId(prefill)) && extractYouTubeLinks(prefill).length === 0;
+  addLinks.value = playlistOnly ? "" : prefill;
+  importPlaylistUrl.value = playlistOnly ? prefill : "";
+  setImportTab(playlistOnly ? "playlist" : "links");
+  document.querySelector("#bookmarklet").href = makeBookmarklet();
   const route = parseRoute(location.hash);
   if (route.name === "playlist") {
     const choice = addChoices.querySelector(`[data-add-playlist="${CSS.escape(route.id)}"]`);
     if (choice) choice.checked = true;
   }
-  addDialog.showModal(); addUrl.focus();
+  addDialog.showModal(); addLinks.focus();
+  if (prefill && !playlistOnly) window.setTimeout(previewVideo, 0);
 }
 
-// Fetch only YouTube's public oEmbed title and author; importing still works offline.
+function setImportTab(tab) {
+  importTab = tab;
+  document.querySelectorAll("[data-import-panel]").forEach((panel) => { panel.hidden = panel.dataset.importPanel !== tab; });
+  document.querySelectorAll(".import-tabs [data-action='import-tab']").forEach((button) => { button.setAttribute("aria-selected", String(button.dataset.tab === tab)); });
+}
+
+function makeBookmarklet() {
+  const base = location.origin.replace(/'/g, "%27");
+  return `javascript:(()=>window.open('${base}/#/import?u='+encodeURIComponent(location.href),'_blank'))()`;
+}
+
+function renderImportPreview(items) {
+  preview.innerHTML = items.map((item) => `<article class="import-preview-row" data-import-row="${escapeHtml(item.id)}">
+    <input type="checkbox" data-import-id="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.title)}" ${item.selected ? "checked" : ""}>
+    <div class="import-thumb"><img loading="lazy" src="https://i.ytimg.com/vi/${encodeURIComponent(item.id)}/hqdefault.jpg" alt=""></div>
+    <div class="import-copy"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.author || "YouTube")}</span><small class="import-status">${escapeHtml(item.status)}</small></div>
+    ${item.playlistId ? `<button type="button" data-action="import-playlist" data-url="${escapeHtml(item.url)}">Playlist found</button>` : ""}
+    <button type="button" data-action="import-remove" data-id="${escapeHtml(item.id)}" aria-label="Remove ${escapeHtml(item.title)}">×</button>
+  </article>`).join("");
+  preview.hidden = items.length === 0;
+  saveVideoButton.disabled = items.length === 0;
+}
+
+// Preview each unique video without stopping the import when public metadata is unavailable.
 async function previewVideo() {
-  const id = extractVideoId(addUrl.value);
-  if (!id) { addMessage.textContent = "Paste a valid YouTube video link or ID."; saveVideoButton.disabled = true; return; }
-  pendingVideo = { id, title: "Untitled video", author: "", durationSec: null, tags: [] };
-  addMessage.textContent = "Looking up the video…";
-  try {
-    const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}&format=json`;
-    const response = await fetch(endpoint);
-    if (!response.ok) throw new Error("oEmbed unavailable");
-    const info = await response.json();
-    pendingVideo.title = info.title || pendingVideo.title;
-    pendingVideo.author = info.author_name || "";
-  } catch (_) {
-    addMessage.textContent = "Could not fetch details. You can still save this as Untitled video.";
-  }
-  preview.innerHTML = `<img src="https://i.ytimg.com/vi/${encodeURIComponent(id)}/hqdefault.jpg" alt=""><p>${escapeHtml(pendingVideo.title)}${pendingVideo.author ? `<br><span class="muted">${escapeHtml(pendingVideo.author)}</span>` : ""}</p>`;
-  preview.hidden = false;
-  saveVideoButton.disabled = false;
-  fillPlaylistChoices(id);
+  const previewButton = document.querySelector("#previewVideo");
+  const items = extractYouTubeLinks(addLinks.value);
+  if (!items.length) { addMessage.textContent = "Paste a YouTube link, a supported video ID, or copied text containing links."; saveVideoButton.disabled = true; return; }
+  previewButton.disabled = true;
+  pendingVideos = [];
+  preview.hidden = false; preview.textContent = "";
+  saveVideoButton.disabled = true;
+  importProgress.hidden = false; importProgressBar.max = items.length; importProgressBar.value = 0;
+  importProgressText.textContent = `Looking up 0 of ${items.length}…`;
+  addMessage.textContent = `Review ${items.length} unique video${items.length === 1 ? "" : "s"} before adding.`;
+  const knownVideos = Object.fromEntries(allVideos().map((video) => [video.id, video]));
+  const results = await previewVideoImports(items, {
+    knownVideos,
+    concurrency: 4,
+    onProgress: (done, total) => { importProgressBar.value = done; importProgressText.textContent = `Looking up ${done} of ${total}…`; }
+  });
+  pendingVideos = results.map((item) => ({ ...item, durationSec: null, tags: [] }));
+  renderImportPreview(pendingVideos);
+  importProgress.hidden = true;
+  previewButton.disabled = false;
+  const playlistId = items.find((item) => item.playlistId)?.playlistId;
+  if (playlistId) addMessage.textContent += ` This link also includes playlist ${playlistId}; it is kept with this preview.`;
 }
 
-// Save a new video or add an existing one to selected playlists.
+// Save checked records once and let Undo remove only records created by this batch.
 function saveVideo(event) {
   event.preventDefault();
-  if (!pendingVideo) return;
+  const selected = new Set([...preview.querySelectorAll("[data-import-id]:checked")].map((input) => input.dataset.importId));
+  if (!selected.size) { addMessage.textContent = "Select at least one video to add."; return; }
   const tags = document.querySelector("#videoTags").value.split(",").map((tag) => tag.trim()).filter(Boolean);
-  const result = store.addVideo({ ...pendingVideo, tags });
   const chosen = [...addChoices.querySelectorAll("[data-add-playlist]:checked")].map((input) => input.dataset.addPlaylist);
-  chosen.forEach((playlistId) => store.addToPlaylist(playlistId, pendingVideo.id));
-  if (!homeState.order.includes(pendingVideo.id)) homeState.order.unshift(pendingVideo.id);
+  const outcome = saveVideoImportBatch(store, pendingVideos, selected, { tags, playlistIds: chosen });
+  pendingVideos.filter((item) => selected.has(item.id)).forEach((item) => {
+    if (!homeState.order.includes(item.id)) homeState.order.unshift(item.id);
+  });
   addDialog.close();
+  pendingVideos = [];
   render();
-  toast(result.added ? "Video added to your library." : "Already in your library. Playlist choices updated.");
+  const summary = `Added ${outcome.addedCount}, ${outcome.existingCount} already in the library, ${outcome.failedCount} lookup${outcome.failedCount === 1 ? "" : "s"} failed.`;
+  toast(summary, outcome.addedIds.length ? () => {
+    outcome.undo();
+    homeState.order = homeState.order.filter((id) => !outcome.addedIds.includes(id));
+  } : null);
 }
 
 // Handle clicks through data-action so screen content can be replaced freely.
@@ -674,6 +728,13 @@ document.addEventListener("click", (event) => {
   else if (action === "play-all-playlist") playPlaylist(parseRoute(location.hash).id);
   else if (action === "shuffle-playlist") playPlaylist(parseRoute(location.hash).id, true);
   else if (action === "open-add-video") openAddVideo();
+  else if (action === "import-tab") setImportTab(actionButton.dataset.tab || "links");
+  else if (action === "import-playlist") { importPlaylistUrl.value = actionButton.dataset.url || ""; setImportTab("playlist"); }
+  else if (action === "import-remove") {
+    pendingVideos = pendingVideos.filter((item) => item.id !== id);
+    renderImportPreview(pendingVideos);
+    if (!pendingVideos.length) addMessage.textContent = "Paste links or choose a file to review videos.";
+  }
   else if (action === "commands-category") { commandsState.category = actionButton.dataset.category || ""; commandsState.query = ""; render(); }
   else if (action === "commands-tab") { commandsState.tab = actionButton.dataset.tab || "voice"; render(); }
   else if (action === "commands-try") voiceUI?.runTextCommand(actionButton.dataset.example || "");
@@ -740,7 +801,14 @@ clearGlobalSearch.addEventListener("click", () => { globalSearchInput.value = ""
 // Wire the import preview and native dialog form.
 document.querySelector("#previewVideo").addEventListener("click", previewVideo);
 addForm.addEventListener("submit", saveVideo);
-addUrl.addEventListener("input", () => { pendingVideo = null; saveVideoButton.disabled = true; });
+addLinks.addEventListener("input", () => {
+  pendingVideos = []; preview.hidden = true; preview.innerHTML = ""; saveVideoButton.disabled = true;
+  addMessage.textContent = "";
+});
+importFile.addEventListener("change", async () => {
+  const files = [...(importFile.files || [])];
+  if (files.length) await handleImportFiles(files);
+});
 document.querySelector("#playlistForm").addEventListener("submit", savePlaylist);
 document.querySelector("#confirmForm").addEventListener("submit", deletePlaylistFromDialog);
 document.querySelector("#tagsForm").addEventListener("submit", saveTags);
@@ -754,7 +822,52 @@ document.querySelector("#membershipForm").addEventListener("submit", (event) => 
   document.querySelector("#membershipDialog").close();
   render(); toast("Playlist choices saved.");
 });
+
+async function handleImportFiles(files) {
+  const links = [];
+  for (const file of files) {
+    try {
+      links.push(...extractImportFileLinks(file.name, await file.text()));
+    } catch (_) {
+      addMessage.textContent = `Could not read ${file.name}. Choose a text, CSV, JSON, HTML, or Markdown file.`;
+      return;
+    }
+  }
+  addLinks.value = [...new Map(links.map((item) => [item.id, item])).values()].map((item) => item.url).join("\n");
+  if (!addLinks.value) {
+    addMessage.textContent = "No supported YouTube links were found in that file.";
+    return;
+  }
+  setImportTab("links");
+  await previewVideo();
+}
+
+// Dropped links open the import form; pasted links offer a non-intrusive review action.
+window.addEventListener("dragover", (event) => {
+  if (event.dataTransfer?.types?.length) event.preventDefault();
+});
+window.addEventListener("drop", async (event) => {
+  const files = [...(event.dataTransfer?.files || [])];
+  const text = event.dataTransfer?.getData("text/uri-list") || event.dataTransfer?.getData("text/plain") || "";
+  if (!files.length && !extractYouTubeLinks(text).length) return;
+  event.preventDefault();
+  if (files.length) {
+    openAddVideo(); setImportTab("file"); await handleImportFiles(files);
+  } else openAddVideo(text);
+});
+document.addEventListener("paste", (event) => {
+  if (event.target.matches("input, textarea, select, [contenteditable='true']")) return;
+  const text = event.clipboardData?.getData("text/plain") || "";
+  const count = extractYouTubeLinks(text).length;
+  if (!count) return;
+  event.preventDefault();
+  toast(`Found ${count} YouTube link${count === 1 ? "" : "s"}, ready to review and add.`, () => openAddVideo(text), "Review and add");
+});
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-import-id]")) {
+    const item = pendingVideos.find((video) => video.id === event.target.dataset.importId);
+    if (item) item.selected = event.target.checked;
+  }
   if (event.target.id === "playlistSort") { playlistState.sort = event.target.value; playlistState.page = 1; render(); }
   if (event.target.id === "playlistFilter") { detailState.filter = event.target.value; detailState.page = 1; render(); }
   if (event.target.id === "playlistVideoSort") { detailState.sort = event.target.value; detailState.page = 1; render(); }
