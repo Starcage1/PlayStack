@@ -212,9 +212,43 @@ body.has-mini-player:not(.watch-route) .toast-region { bottom: 280px; }
 .voice-help[hidden] { display: none; }
 .voice-help h2 { margin: 0 0 8px; font-size: 16px; }
 .voice-help p { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.voice-help-examples { margin: 0 0 12px; padding-left: 20px; color: var(--muted); line-height: 1.7; font-size: 13px; }
+.voice-help-all { display: inline-flex; align-items: center; min-height: 40px; color: var(--accent); font-weight: 650; }
 .voice-text-form label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; }
 .voice-text-form > div { display: flex; gap: 8px; }
 .voice-text-form input { min-width: 0; min-height: 42px; flex: 1; }
+
+/* Keep the generated command guide readable on narrow and wide screens. */
+.commands-heading { align-items: center; }
+.command-tabs { display: flex; gap: 8px; margin: 18px 0; border-bottom: 1px solid var(--divider); }
+.command-tabs button { min-height: 44px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); background: transparent; }
+.command-tabs button.active { border-bottom-color: var(--accent); color: var(--text); }
+.commands-browser { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 20px; align-items: start; }
+.command-categories { position: sticky; top: 84px; display: grid; gap: 6px; }
+.command-category { min-height: 44px; padding: 9px 12px; text-align: left; border: 1px solid transparent; border-radius: 10px; color: var(--muted); background: transparent; }
+.command-category.active { color: var(--text); border-color: var(--divider); background: var(--surface-raised); }
+.command-results > input { width: 100%; min-height: 46px; margin-bottom: 8px; }
+.command-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+.command-card { min-width: 0; padding: 16px; border: 1px solid var(--divider); border-radius: 14px; background: var(--surface); }
+.command-card-heading { display: grid; gap: 6px; }
+.command-category-label { color: var(--accent); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.command-card h3 { margin: 0; font-size: 16px; }
+.command-card > p { min-height: 40px; color: var(--muted); line-height: 1.45; font-size: 13px; }
+.command-examples { display: grid; gap: 4px; margin: 12px 0; }
+.command-examples p { margin: 0; color: var(--muted); font-size: 12px; }
+.command-examples b { display: inline-block; min-width: 68px; color: var(--text); }
+.keyboard-panel { max-width: 740px; padding: 18px; border: 1px solid var(--divider); border-radius: 14px; background: var(--surface); }
+.shortcut-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.shortcut-list > div { display: flex; align-items: center; gap: 12px; min-height: 42px; color: var(--muted); }
+.shortcut-list kbd { min-width: 86px; padding: 5px 8px; border: 1px solid var(--divider); border-radius: 6px; color: var(--text); background: var(--surface-raised); text-align: center; }
+.theater-mode .player-shell.expanded { left: 32px; right: 32px; width: auto; max-width: none; }
+.player-shell.ambient-on:not(.is-hidden) { box-shadow: 0 14px 46px #000b, 0 0 34px 4px #8065ed55; }
+@media (max-width: 720px) {
+  .commands-browser { grid-template-columns: 1fr; gap: 12px; }
+  .command-categories { position: static; display: flex; overflow-x: auto; padding-bottom: 4px; }
+  .command-category { flex: 0 0 auto; }
+  .shortcut-list { grid-template-columns: 1fr; }
+}
 .voice-debug { width: min(430px, calc(100vw - 32px)); max-height: min(62vh, 620px); overflow: auto; padding: 14px; border: 1px solid #695c98; border-radius: 14px; background: #17151d; box-shadow: 0 10px 30px #000a; }
 .voice-debug[hidden] { display: none; }
 .voice-debug h2 { margin: 0 0 10px; font-size: 15px; }

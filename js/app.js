@@ -1,16 +1,20 @@
 import { createStore } from "./store.js";
 import { extractVideoId } from "./video-id.js";
-import { filterAndSortVideos, shuffle } from "./utils.js";
+import { filterAndSortVideos, shuffle, paginate, sortPlaylists } from "./utils.js";
+import { searchLibrary, rankVideoMatches } from "./search.js";
+import { VIDEO_PAGE_SIZE, PLAYLIST_PAGE_SIZE } from "./config.js";
 import { navigate, parseRoute, watchRoute } from "./router.js";
 import * as yt from "./player.js";
 import { formatTime, renderHome, renderHomeChips } from "./views/home.js";
 import { renderPlaylists } from "./views/playlists.js";
 import { renderPlaylistDetail } from "./views/playlist-detail.js";
 import { renderSearchPage } from "./views/search-results.js";
+import { renderCommands } from "./views/commands.js";
 import { initVoiceUI } from "./voice/voice-ui.js";
 import { parseCommand } from "./voice/intents.js";
 import { createVoiceActions } from "./voice/actions.js";
 import { responseFor } from "./voice/responses.js";
+import { COMMANDS } from "./voice/intents.js";
 
 const app = document.querySelector("#app");
 const sidebarContent = document.querySelector("#sidebarContent");
@@ -28,6 +32,7 @@ const preview = document.querySelector("#videoPreview");
 const saveVideoButton = document.querySelector("#saveVideo");
 const addChoices = document.querySelector("#addPlaylistChoices");
 const homeState = { filter: "", page: 1, order: [] };
+const commandsState = { query: "", category: "", tab: "voice" };
 const playlistState = { sort: "recent", page: 1 };
 let detailState = { id: "", query: "", filter: "", sort: "manual", page: 1 };
 const playback = { queue: [], index: 0, currentId: "", autoplayPlaylistId: null, expanded: false, seeking: false, miniSeeking: false };
@@ -47,6 +52,11 @@ let sidebarDrawerOpen = false;
 let watchNavigationPushed = false;
 let watchLibraryOrder = [];
 let voiceUI = null;
+let sleepTimer = { timeout: 0, deadline: 0, minutes: 0 };
+let theaterMode = false;
+let ambientMode = true;
+let volumeBeforeMute = 100;
+playerShell.classList.add("ambient-on");
 
 // Use small original line icons instead of a third-party icon package.
 const iconPaths = {
@@ -56,7 +66,9 @@ const iconPaths = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   chevron: '<path d="m9 18 6-6-6-6"/>',
   search: '<circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/>',
-  shuffle: '<path d="m16 3 5 5-5 5M3 7h2c5 0 8 10 13 10h3M3 17h2c2.2 0 3.8-2 5.3-4.2M14 7c1.2-1.2 2.4-2 4-2h3"/>'
+  shuffle: '<path d="m16 3 5 5-5 5M3 7h2c5 0 8 10 13 10h3M3 17h2c2.2 0 3.8-2 5.3-4.2M14 7c1.2-1.2 2.4-2 4-2h3"/>',
+  commands: '<path d="M5 5h14v14H5zM8 9h8M8 12h8M8 15h5"/>',
+  settings: '<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/><path d="m19.4 15 .1.1 1.5 1.2-1.5 2.6-1.8-.7a7.7 7.7 0 0 1-1.5.9l-.3 1.9h-3l-.3-1.9a7.7 7.7 0 0 1-1.5-.9l-1.8.7-1.5-2.6 1.5-1.2a7.5 7.5 0 0 1 0-1.8l-1.5-1.2 1.5-2.6 1.8.7a7.7 7.7 0 0 1 1.5-.9l.3-1.9h3l.3 1.9a7.7 7.7 0 0 1 1.5.9l1.8-.7 1.5 2.6-1.5 1.2a7.5 7.5 0 0 1 0 1.8z"/>'
 };
 const icon = (name) => `<span class="sidebar-icon" aria-hidden="true"><svg viewBox="0 0 24 24">${iconPaths[name] || iconPaths.playlist}</svg></span>`;
 
@@ -96,6 +108,8 @@ function render() {
   if (route.name === "home") content = renderHome({ videos: allVideos(), order: homeState.order, filter: homeState.filter, page: homeState.page });
   else if (route.name === "favorites") content = renderHome({ videos: allVideos().filter((video) => video.favorite), order: homeState.order, filter: homeState.filter, page: homeState.page, title: "Favorites" });
   else if (route.name === "playlists") content = renderPlaylists(store.getPlaylists(), allVideos(), playlistState);
+  else if (route.name === "commands") content = renderCommands(COMMANDS, commandsState);
+  else if (route.name === "settings") content = `<section class="screen-heading"><div><h1>Settings</h1><p class="muted">Personalize your player and voice controls.</p></div></section><div class="empty-state"><p>Settings options are being organized.</p></div>`;
   else if (route.name === "watch") content = playback.currentId ? "" : `<div class="empty-state"><h2>Nothing is playing</h2><p>Choose a video from Home or a playlist.</p><button data-action="nav-home">Go to Home</button></div>`;
   else if (route.name === "search") content = renderSearchPage(allVideos(), store.getPlaylists(), route.query);
   else {
@@ -128,6 +142,8 @@ function renderSidebar(route) {
       <button class="sidebar-link ${route.name === "home" ? "active" : ""}" data-action="nav-home">${icon("home")}<span>Home</span></button>
       <button class="sidebar-link ${route.name === "playlists" ? "active" : ""}" data-action="nav-playlists">${icon("playlist")}<span>Playlists</span></button>
       <button class="sidebar-link ${route.name === "favorites" ? "active" : ""}" data-action="nav-favorites">${icon("favorite")}<span>Favorites</span></button>
+      <button class="sidebar-link ${route.name === "commands" ? "active" : ""}" data-action="nav-commands">${icon("commands")}<span>Commands</span></button>
+      <button class="sidebar-link ${route.name === "settings" ? "active" : ""}" data-action="nav-settings">${icon("settings")}<span>Settings</span></button>
     </div><div class="sidebar-section"><div class="sidebar-title">Your playlists</div>${playlistItems}
       ${playlists.length > 7 ? `<button class="sidebar-link sidebar-show-more" data-action="sidebar-show-more">${sidebarShowAll ? "Show less" : "Show more"}</button>` : ""}
       <button class="sidebar-link" data-action="new-playlist">${icon("plus")}<span>New playlist</span></button>
@@ -345,8 +361,141 @@ function createVoiceActionRunner() {
       if (playback.currentId) updatePlayerLabels();
     },
     setPlaylistsSort: (sort) => { playlistState.sort = sort; playlistState.page = 1; render(); },
-    openCreatedPlaylist: (playlist) => { render(); navigate({ name: "playlist", id: playlist.id }); }
+    openCreatedPlaylist: (playlist) => { render(); navigate({ name: "playlist", id: playlist.id }); },
+    handlers: createExtendedVoiceHandlers()
   });
+}
+
+function createExtendedVoiceHandlers() {
+  return {
+    play_visible: ({ index }) => {
+      const cards = [...document.querySelectorAll("#routeView [data-video-id]")];
+      if (!cards.length) return { ok: false, reason: "no_visible_videos" };
+      const position = Number(index) < 0 ? cards.length : Number(index);
+      const video = store.getVideo(cards[position - 1]?.dataset.videoId);
+      if (!video) return { ok: false, reason: "visible_index_missing" };
+      playFromCurrentScreen(video.id);
+      return { ok: true, reason: "named_playing", title: video.title };
+    },
+    play_random: ({ source }) => {
+      let videos = allVideos();
+      let sourcePlaylist = null;
+      if (source && source !== "current") {
+        sourcePlaylist = store.getPlaylists().find((item) => item.name.toLowerCase().includes(source.toLowerCase())) || null;
+        videos = sourcePlaylist ? sourcePlaylist.videoIds.map((id) => store.getVideo(id)).filter(Boolean)
+          : videos.filter((video) => (video.title + " " + video.author + " " + video.tags.join(" ")).toLowerCase().includes(source.toLowerCase()));
+      } else if (parseRoute(location.hash).name === "playlist") {
+        const playlist = store.getPlaylist(parseRoute(location.hash).id);
+        videos = playlist ? filterAndSortVideos(playlist.videoIds.map((id) => store.getVideo(id)).filter(Boolean), { query: detailState.query, filter: detailState.filter, sort: detailState.sort, order: playlist.videoIds }) : [];
+      } else if (parseRoute(location.hash).name === "home") {
+        videos = homeState.order.map((id) => store.getVideo(id)).filter(Boolean);
+        if (homeState.filter === "Favs") videos = videos.filter((item) => item.favorite);
+        else if (homeState.filter !== "Recently added" && homeState.filter) videos = videos.filter((item) => item.tags.some((tag) => tag.toLowerCase() === homeState.filter.toLowerCase()));
+      }
+      if (!videos.length) return { ok: false, reason: "no_matching_videos" };
+      const video = videos[Math.floor(Math.random() * videos.length)];
+      if (sourcePlaylist) {
+        playVideo(video.id, sourcePlaylist.videoIds);
+        playback.autoplayPlaylistId = sourcePlaylist.id;
+      } else playFromCurrentScreen(video.id);
+      return { ok: true, reason: "named_playing", title: video.title };
+    },
+    play_named: ({ query }) => {
+      const matches = rankVideoMatches(allVideos(), query);
+      if (!matches.length) return { ok: false, reason: "video_not_found", query };
+      if (matches.length > 1 && (matches[0].score < 0.9 || matches[0].score - matches[1].score < 0.2)) {
+        navigate({ name: "search", query });
+        return { ok: true, reason: "video_matches", count: matches.length, query };
+      }
+      playFromCurrentScreen(matches[0].video.id);
+      return { ok: true, reason: "named_playing", title: matches[0].video.title };
+    },
+    search: ({ query }) => {
+      if (parseRoute(location.hash).name === "playlist") { detailState.query = query; detailState.page = 1; render(); }
+      else navigate({ name: "search", query });
+      return { ok: true, reason: "search_done" };
+    },
+    clear_search: () => {
+      if (parseRoute(location.hash).name === "playlist") { detailState.query = ""; detailState.page = 1; render(); }
+      else { homeState.filter = ""; homeState.page = 1; navigate({ name: "home" }); }
+      return { ok: true, reason: "search_cleared" };
+    },
+    page_next: () => changeVoicePage(1),
+    page_previous: () => changeVoicePage(-1),
+    page_number: ({ page }) => setVoicePage(page),
+    scroll: ({ direction }) => { window.scrollBy({ top: (direction === "down" ? 1 : -1) * window.innerHeight * 0.75, behavior: "smooth" }); return { ok: true, reason: "scrolled" }; },
+    scroll_top: () => { window.scrollTo({ top: 0, behavior: "smooth" }); return { ok: true, reason: "scrolled_top" }; },
+    open_settings: () => { navigate({ name: "settings" }); return { ok: true, reason: "settings_opened" }; },
+    open_commands: () => { commandsState.category = ""; navigate({ name: "commands" }); return { ok: true, reason: "commands_opened" }; },
+    open_import: () => { openAddVideo(); return { ok: true, reason: "import_opened" }; },
+    go_back: () => { if (history.length > 1) history.back(); else navigate({ name: "home" }); return { ok: true, reason: "went_back" }; },
+    sleep_timer_set: ({ minutes }) => {
+      clearTimeout(sleepTimer.timeout); sleepTimer.minutes = Number(minutes); sleepTimer.deadline = Date.now() + sleepTimer.minutes * 60000;
+      sleepTimer.timeout = window.setTimeout(() => { yt.pause(); sleepTimer = { timeout: 0, deadline: 0, minutes: 0 }; toast("Sleep timer paused playback."); }, sleepTimer.minutes * 60000);
+      return { ok: true, reason: "sleep_timer_set", minutes: sleepTimer.minutes };
+    },
+    sleep_timer_cancel: () => { clearTimeout(sleepTimer.timeout); sleepTimer = { timeout: 0, deadline: 0, minutes: 0 }; return { ok: true, reason: "sleep_timer_cancelled" }; },
+    sleep_timer_status: () => ({ ok: true, reason: "sleep_timer_status", remaining: Math.max(0, Math.ceil((sleepTimer.deadline - Date.now()) / 60000)) }),
+    theater_mode: ({ enabled }) => { theaterMode = enabled ?? !theaterMode; document.body.classList.toggle("theater-mode", theaterMode); return { ok: true, reason: "theater_updated", enabled: theaterMode }; },
+    fullscreen_mode: async ({ enabled }) => {
+      if (enabled === false && document.fullscreenElement) await document.exitFullscreen();
+      else if (enabled !== false && !document.fullscreenElement) await playerShell.requestFullscreen?.();
+      return { ok: true, reason: "fullscreen_updated" };
+    },
+    ambient_mode: ({ enabled }) => { ambientMode = enabled ?? !ambientMode; playerShell.classList.toggle("ambient-on", ambientMode); return { ok: true, reason: "ambient_updated", enabled: ambientMode }; },
+    minimize_player: () => { setPlayerMode("mini"); return { ok: true, reason: "player_minimized" }; },
+    expand_player: () => { setPlayerMode("expanded"); return { ok: true, reason: "player_expanded" }; },
+    help: ({ category }) => { commandsState.category = category || ""; commandsState.tab = "voice"; navigate({ name: "commands" }); return { ok: true, reason: "help_opened" }; },
+    what_playing: () => ({ ok: true, reason: "what_playing", video: getCurrent() }),
+    library_count: () => ({ ok: true, reason: "library_count", count: allVideos().length }),
+    playlist_count: () => ({ ok: true, reason: "playlist_count", count: store.getPlaylists().length }),
+    list_playlists: () => ({ ok: true, reason: "list_playlists", names: store.getPlaylists().map((item) => item.name) })
+  };
+}
+
+function changeVoicePage(step) {
+  const route = parseRoute(location.hash);
+  applyVoicePage(route, currentVoicePage(route) + step);
+  render(); window.scrollTo({ top: 0, behavior: "smooth" });
+  return { ok: true, reason: step > 0 ? "page_next" : "page_previous" };
+}
+
+function setVoicePage(page) {
+  const route = parseRoute(location.hash);
+  const value = Math.max(1, Math.min(currentVoicePageCount(route), Number(page) || 1));
+  applyVoicePage(route, value);
+  render(); window.scrollTo({ top: 0, behavior: "smooth" });
+  return { ok: true, reason: "page_opened", page: value };
+}
+
+function currentVoicePage(route) {
+  if (route.name === "playlist") return detailState.page;
+  if (route.name === "playlists") return playlistState.page;
+  return homeState.page;
+}
+
+function currentVoicePageCount(route) {
+  if (route.name === "playlist") {
+    const playlist = store.getPlaylist(route.id);
+    const videos = playlist ? filterAndSortVideos(playlist.videoIds.map((id) => store.getVideo(id)).filter(Boolean), { query: detailState.query, filter: detailState.filter, sort: detailState.sort, order: playlist.videoIds }) : [];
+    return paginate(videos, 1, VIDEO_PAGE_SIZE).totalPages;
+  }
+  if (route.name === "playlists") return paginate(sortPlaylists(store.getPlaylists(), playlistState.sort), 1, PLAYLIST_PAGE_SIZE).totalPages;
+  let videos = allVideos();
+  if (route.name === "favorites") videos = videos.filter((video) => video.favorite);
+  else {
+    videos = homeState.order.map((id) => store.getVideo(id)).filter(Boolean);
+    if (homeState.filter === "Favs") videos = videos.filter((video) => video.favorite);
+    else if (!["", "All", "Recently added"].includes(homeState.filter)) videos = videos.filter((video) => video.tags.some((tag) => tag.toLowerCase() === homeState.filter.toLowerCase()));
+  }
+  return paginate(videos, 1, VIDEO_PAGE_SIZE).totalPages;
+}
+
+function applyVoicePage(route, page) {
+  const value = Math.max(1, Math.min(currentVoicePageCount(route), Number(page) || 1));
+  if (route.name === "playlist") detailState.page = value;
+  else if (route.name === "playlists") playlistState.page = value;
+  else homeState.page = value;
 }
 
 // Create a playlist checkbox for the Add video dialog.
@@ -518,11 +667,16 @@ document.addEventListener("click", (event) => {
   else if (action === "nav-home") { sidebarDrawerOpen = false; navigate({ name: "home" }); }
   else if (action === "nav-playlists") { sidebarDrawerOpen = false; navigate({ name: "playlists" }); }
   else if (action === "nav-favorites") { sidebarDrawerOpen = false; navigate({ name: "favorites" }); }
+  else if (action === "nav-settings") { sidebarDrawerOpen = false; navigate({ name: "settings" }); }
+  else if (action === "nav-commands") { navigate({ name: "commands" }); }
   else if (action === "sidebar-playlist") { sidebarDrawerOpen = false; navigate({ name: "playlist", id }); }
   else if (action === "sidebar-show-more") { sidebarShowAll = !sidebarShowAll; render(); }
   else if (action === "play-all-playlist") playPlaylist(parseRoute(location.hash).id);
   else if (action === "shuffle-playlist") playPlaylist(parseRoute(location.hash).id, true);
   else if (action === "open-add-video") openAddVideo();
+  else if (action === "commands-category") { commandsState.category = actionButton.dataset.category || ""; commandsState.query = ""; render(); }
+  else if (action === "commands-tab") { commandsState.tab = actionButton.dataset.tab || "voice"; render(); }
+  else if (action === "commands-try") voiceUI?.runTextCommand(actionButton.dataset.example || "");
   else if (action === "shuffle") { homeState.order = shuffle(allVideos().map((video) => video.id)); homeState.page = 1; render(); }
   else if (action === "home-filter") { const selected = filter === "All" ? "" : filter; homeState.filter = homeState.filter === selected ? "" : selected; homeState.page = 1; render(); }
   else if (action === "chips-left" || action === "chips-right") app.querySelector("#homeChips")?.scrollBy({ left: action === "chips-left" ? -260 : 260, behavior: "smooth" });
@@ -615,6 +769,11 @@ document.addEventListener("change", (event) => {
   }
 });
 document.addEventListener("input", (event) => {
+  if (event.target.id === "commandSearch") {
+    commandsState.query = event.target.value;
+    clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => { render(); const input = document.querySelector("#commandSearch"); input?.focus(); input?.setSelectionRange(commandsState.query.length, commandsState.query.length); }, 120);
+  }
   if (event.target.id === "playlistSearch") {
     detailState.query = event.target.value;
     detailState.page = 1;
@@ -674,18 +833,47 @@ document.addEventListener("pointerup", () => { playback.seeking = false; playbac
 document.querySelector("#playerVolume").value = String(store.getState().settings.volume);
 document.querySelector("#playerVolume").addEventListener("input", (event) => { store.setVolume(event.target.value); yt.setVolume(event.target.value); });
 
-// Space toggles playback unless typing; Escape closes the topmost surface.
+// Keep shortcuts out of text fields and let focused buttons use their normal keys.
 document.addEventListener("keydown", (event) => {
   const typing = event.target.matches("input, textarea, select, [contenteditable='true']");
+  const key = event.key.toLocaleLowerCase();
+  const playerVisible = !playerShell.classList.contains("is-hidden");
+  const hasDialog = Boolean(document.querySelector("dialog[open]"));
   if ((event.key === "Enter" || event.key === " ") && !typing) {
     const videoCard = event.target.closest("[data-video-id]");
     const playlistCard = event.target.closest("[data-playlist-open]");
     if (videoCard && !event.target.closest("button, summary, details")) { event.preventDefault(); playFromCurrentScreen(videoCard.dataset.videoId); }
     else if (playlistCard && !event.target.closest("button, summary, details")) { event.preventDefault(); navigate({ name: "playlist", id: playlistCard.dataset.playlistOpen }); }
   }
-  if (event.key === " " && !typing && !event.target.closest("button, a, summary, [data-video-id], [data-playlist-open]") && !playerShell.classList.contains("is-hidden")) { event.preventDefault(); if (yt.getState() === (window.YT?.PlayerState?.PLAYING ?? 1)) yt.pause(); else yt.play(); }
-  if (event.key === "/" && !typing && !document.querySelector("dialog[open]")) { event.preventDefault(); if (window.innerWidth < 800) document.body.classList.add("mobile-search-open"); globalSearchInput.focus(); }
-  if (event.key.toLocaleLowerCase() === "v" && !typing && !document.querySelector("dialog[open]") && !document.body.classList.contains("watch-route")) {
+  if (!typing && !hasDialog && key === "k" && playerVisible) { event.preventDefault(); togglePlayback(); }
+  if (!typing && !hasDialog && event.key === " " && !event.target.closest("button, a, summary, [data-video-id], [data-playlist-open]") && playerVisible) { event.preventDefault(); togglePlayback(); }
+  if (!typing && !hasDialog && playerVisible && ["j", "l", "arrowleft", "arrowright"].includes(key)) {
+    event.preventDefault();
+    const amount = key === "j" || key === "arrowleft" ? -10 : key === "l" ? 10 : key === "arrowright" ? 5 : -5;
+    yt.seekTo(Math.max(0, Math.min(yt.getDuration(), yt.getTime() + amount)), true);
+  }
+  if (!typing && !hasDialog && playerVisible && ["arrowup", "arrowdown"].includes(key)) {
+    event.preventDefault();
+    const value = Math.max(0, Math.min(100, Number(store.getState().settings.volume) + (key === "arrowup" ? 5 : -5)));
+    store.setVolume(value); yt.setVolume(value); document.querySelector("#playerVolume").value = String(value);
+  }
+  if (!typing && !hasDialog && playerVisible && key === "m") {
+    event.preventDefault();
+    const current = Number(store.getState().settings.volume);
+    if (current > 0) { volumeBeforeMute = current; store.setVolume(0); yt.setVolume(0); }
+    else { store.setVolume(volumeBeforeMute || 100); yt.setVolume(volumeBeforeMute || 100); }
+    document.querySelector("#playerVolume").value = String(store.getState().settings.volume);
+  }
+  if (!typing && !hasDialog && playerVisible && key === "f") { event.preventDefault(); if (document.fullscreenElement) document.exitFullscreen?.(); else playerShell.requestFullscreen?.().catch(() => toast("Fullscreen is not available in this browser.")); }
+  if (!typing && !hasDialog && playerVisible && key === "t") { theaterMode = !theaterMode; document.body.classList.toggle("theater-mode", theaterMode); }
+  if (!typing && !hasDialog && playerVisible && key === "i") setPlayerMode("mini");
+  if (!typing && !hasDialog && playerVisible && key === "c" && !yt.toggleCaptions()) toast("Captions are not available yet for this video.");
+  if (!typing && !hasDialog && event.shiftKey && key === "n") moveQueue(1, true);
+  if (!typing && !hasDialog && event.shiftKey && key === "p") moveQueue(-1, true);
+  if (!typing && !hasDialog && playerVisible && /^[0-9]$/.test(event.key)) yt.seekTo(yt.getDuration() * Number(event.key) / 10, true);
+  if (event.key === "/" && !typing && !hasDialog) { event.preventDefault(); if (window.innerWidth < 800) document.body.classList.add("mobile-search-open"); globalSearchInput.focus(); }
+  if (event.key === "?" && !typing && !hasDialog) { event.preventDefault(); commandsState.tab = "voice"; navigate({ name: "commands" }); }
+  if (key === "v" && !typing && !hasDialog && !document.body.classList.contains("watch-route")) {
     event.preventDefault();
     voiceUI?.start();
   }
@@ -699,6 +887,11 @@ document.addEventListener("keydown", (event) => {
     else if (playerShell.classList.contains("expanded")) setPlayerMode("mini");
   }
 });
+
+function togglePlayback() {
+  if (yt.getState() === (window.YT?.PlayerState?.PLAYING ?? 1)) yt.pause();
+  else yt.play();
+}
 
 // Keep the thumbnail box in place when a video has no available thumbnail.
 document.addEventListener("error", (event) => {
@@ -715,6 +908,7 @@ document.addEventListener("load", (event) => {
 // Initial route and short playback polling keep the app responsive.
 const voiceActions = createVoiceActionRunner();
 voiceUI = initVoiceUI({
+  commands: COMMANDS,
   getKeyterms: () => [...new Set([
     ...store.getPlaylists().map((playlist) => playlist.name),
     ...allVideos().flatMap((video) => video.tags || [])

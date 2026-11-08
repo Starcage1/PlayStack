@@ -55,6 +55,10 @@ The app itself has no JavaScript build step or npm dependencies. With Node.js in
 node --test
 ```
 
+## Voice commands
+
+Open **Commands** in the sidebar, press **?**, or say “help” to browse voice examples and keyboard shortcuts. The page is generated from the command registry; use its search, category filters, and **Try it** buttons to run examples through the typed-command path. Current commands cover selecting and finding videos, random playback, search and navigation, player modes, sleep timers, and library information.
+
 ## Voice slice
 
 The microphone button records up to ten seconds, stops after 1.2 seconds of silence only after speech is detected, resamples the audio to mono 16 kHz PCM WAV, checks the WAV header, and sends it to the local `/api/stt` endpoint. Recognized Hinglish, English, or Devanagari commands are matched against a small safe command list, applied through the app's existing player and storage functions, and answered through `/api/tts`. Unsupported requests are not executed. Run the Python server rather than opening the HTML file directly.
