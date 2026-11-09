@@ -195,6 +195,15 @@ function syncPlayerRoute(route = parseRoute(location.hash)) {
   if (!expanded) watchNavigationPushed = false;
 }
 
+async function togglePlayerFullscreen() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else if (playerShell.requestFullscreen) await playerShell.requestFullscreen();
+    else throw new Error("Fullscreen unavailable");
+  } catch (_) {
+    toast("Fullscreen is not available in this browser.");
+  }
+}
 function setPlayerMode(mode) {
   if (mode === "expanded") {
     if (parseRoute(location.hash).name !== "watch") {
@@ -750,6 +759,7 @@ document.addEventListener("click", (event) => {
   }
   else if (action === "close-dialog") actionButton.closest("dialog")?.close();
   else if (action === "expand-player") setPlayerMode("expanded");
+  else if (action === "fullscreen-player") togglePlayerFullscreen();
   else if (action === "minimize-player") setPlayerMode("mini");
   else if (action === "close-player") { yt.stop(); playerShell.classList.add("is-hidden"); document.body.classList.remove("has-mini-player"); playback.currentId = ""; playback.queue = []; }
   else if (action === "toggle-playback") { if (yt.getState() === (window.YT?.PlayerState?.PLAYING ?? 1)) yt.pause(); else yt.play(); }
