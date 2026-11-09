@@ -53,7 +53,8 @@ export function responseFor(parsed, result) {
     case "sleep_timer_cancelled": return "Sleep timer cancel kar diya.";
     case "sleep_timer_status": return result.remaining ? `${result.remaining} minute baaki hain.` : "Koi sleep timer active nahi hai.";
     case "theater_updated": return result.enabled ? "Theater mode on kar diya." : "Theater mode off kar diya.";
-    case "fullscreen_updated": return "Fullscreen setting update kar di.";
+    case "fullscreen_updated": return result.enabled ? "Fullscreen on kar diya." : "Fullscreen band kar diya.";
+    case "fullscreen_fallback_theater": return "Theater view khol diya. Browser security needs a tap on Fullscreen to enter actual fullscreen.";
     case "ambient_updated": return result.enabled ? "Ambient mode on kar diya." : "Ambient mode off kar diya.";
     case "player_minimized": return "Player minimize kar diya.";
     case "player_expanded": return "Player expand kar diya.";

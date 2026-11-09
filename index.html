@@ -78,7 +78,7 @@
       </section>
       <section data-import-panel="playlist" hidden>
         <label>YouTube playlist link<input id="importPlaylistUrl" placeholder="https://www.youtube.com/playlist?list=…"></label>
-        <p class="muted">Playlist importing needs the optional YouTube API connection. For now, add individual video links from the Links tab.</p>
+        <p class="muted">Fetch public playlist videos in pages of 50. Each page uses one YouTube API request.</p><button type="button" id="fetchPlaylistVideos" data-action="fetch-youtube-playlist">Fetch playlist videos</button><button type="button" id="fetchNextPlaylistPage" data-action="fetch-next-playlist-page" class="secondary" hidden>Load next 50</button>
         <button type="button" class="secondary" data-action="import-tab" data-tab="links">Import individual video links</button>
       </section>
       <section data-import-panel="file" hidden>

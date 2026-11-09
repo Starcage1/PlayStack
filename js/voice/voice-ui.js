@@ -17,7 +17,8 @@ export function initVoiceUI({
   dock.className = "voice-dock";
   const featuredIds = ["play_random", "play_named", "search", "open_commands", "sleep_timer_set", "theater_mode", "fullscreen_mode", "playlist_count", "library_count"];
   const featured = featuredIds.map((id) => commands.find((item) => item.id === id)?.examples?.hi?.[0]?.text).filter(Boolean);
-  const helpLines = (featured.length ? featured : ["pause karo", "agla video chalao", "awaaz 40 karo"]).map((line) => `<li>“${escapeHtml(line)}”</li>`).join("");
+  const verifiedExamples = [...featured, "30 seconds forward", "volume fifty karo", "coding playlist kholo"];
+  const helpLines = [...new Set(verifiedExamples)].map((line) => `<li>“${escapeHtml(line)}”</li>`).join("");
   dock.innerHTML = `<p class="voice-status" role="status" aria-live="polite" hidden></p>
     <div class="voice-help" hidden>
       <h2>What can I say?</h2>

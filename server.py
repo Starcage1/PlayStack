@@ -29,6 +29,9 @@ TTS_URL = "https://api.vachana.ai/api/v1/tts/inference"
 REQUEST_TIMEOUT = 15
 MAX_TTS_CACHE_ITEMS = 64
 MAX_TEXT_LENGTH = 1200
+YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3/playlistItems"
+MAX_PLAYLIST_PAGE_CACHE = 100
+playlist_page_cache: OrderedDict[tuple[str, str], dict[str, Any]] = OrderedDict()
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
@@ -146,6 +149,58 @@ def health():
     # This reports configuration state only; it never returns the key.
     return jsonify({"key_configured": bool(api_key()), "mock": mock_enabled()})
 
+
+@app.get("/api/youtube/playlist-items")
+def youtube_playlist_items():
+    """Fetch one quota-bounded page from a public YouTube playlist."""
+    api_key = os.getenv("YOUTUBE_API_KEY", "").strip()
+    if not api_key:
+        return jsonify({"error": "Add YOUTUBE_API_KEY to the local .env file and restart PlayStack."}), 503
+    playlist_id = request.args.get("playlistId", "").strip()
+    if not playlist_id or len(playlist_id) > 128 or not all(ch.isalnum() or ch in "_-" for ch in playlist_id):
+        return jsonify({"error": "Enter a valid YouTube playlist link."}), 400
+    page_token = request.args.get("pageToken", "").strip()
+    if len(page_token) > 2048:
+        return jsonify({"error": "That playlist page token is invalid."}), 400
+    cache_key = (playlist_id, page_token)
+    cached = playlist_page_cache.get(cache_key)
+    if cached is not None:
+        playlist_page_cache.move_to_end(cache_key)
+        return jsonify(cached)
+    try:
+        response = requests.get(YOUTUBE_API_URL, params={
+            "part": "snippet", "playlistId": playlist_id, "maxResults": 50,
+            "pageToken": page_token or None,
+            "fields": "nextPageToken,items(snippet(title,channelTitle,resourceId/videoId))",
+            "key": api_key,
+            
+        }, timeout=REQUEST_TIMEOUT)
+        payload = response.json()
+        if response.status_code >= 400:
+            reason = (((payload.get("error") or {}).get("errors") or [{}])[0].get("reason", ""))
+            if reason in {"quotaExceeded", "dailyLimitExceeded"}:
+                return jsonify({"error": "YouTube API daily quota reached. Try again after the quota resets."}), 429
+            if response.status_code == 403:
+                return jsonify({"error": "YouTube API access was denied. Check that the API is enabled and the key is restricted to YouTube Data API v3."}), 403
+            if response.status_code == 404:
+                return jsonify({"error": "That YouTube playlist was not found or is not public."}), 404
+            return jsonify({"error": "YouTube could not return this playlist. Check the link and try again."}), 502
+        items = []
+        for item in payload.get("items", []):
+            snippet = item.get("snippet") or {}
+            video_id = ((snippet.get("resourceId") or {}).get("videoId") or "").strip()
+            if not video_id:
+                continue
+            items.append({"id": video_id, "title": snippet.get("title") or "Untitled video", "author": snippet.get("channelTitle") or "YouTube"})
+        result = {"items": items, "nextPageToken": payload.get("nextPageToken", "")}
+        playlist_page_cache[cache_key] = result
+        while len(playlist_page_cache) > MAX_PLAYLIST_PAGE_CACHE:
+            playlist_page_cache.popitem(last=False)
+        return jsonify(result)
+    except requests.RequestException:
+        return jsonify({"error": "Could not reach YouTube. Check your internet connection and try again."}), 502
+    except ValueError:
+        return jsonify({"error": "YouTube returned an unreadable playlist response."}), 502
 
 @app.post("/api/stt")
 def stt():

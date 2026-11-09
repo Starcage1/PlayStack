@@ -399,3 +399,16 @@ body.has-mini-player:not(.watch-route) .toast-region { bottom: 280px; }
 @keyframes voice-spin { to { transform: rotate(360deg); } }
 .queue-controls { display: flex; gap: 6px; align-items: center; }
 
+
+.playlist-video-row[draggable='true'] { cursor: grab; }
+.playlist-video-row[draggable='true']:active { cursor: grabbing; }
+.playlist-video-row[draggable='true']:hover { outline: 1px solid var(--accent); }
+.voice-status[data-state='thinking']::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; vertical-align: -1px; animation: voice-spin .8s linear infinite; }
+.voice-status[data-state='listening'] { border-color: var(--accent); }
+@keyframes voice-spin { to { transform: rotate(360deg); } }
+.queue-controls { display: flex; gap: 6px; align-items: center; }
+
+
+body.theater-mode { --sidebar-w: 0px; }
+body.theater-mode .sidebar { transform: translateX(-110%); }
+

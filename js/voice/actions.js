@@ -44,7 +44,7 @@ export function createVoiceActions(services) {
       }
       case "change_volume": {
         const current = Number(context.volume ?? 100);
-        const value = Math.max(0, Math.min(100, current + Number(parsed.args.direction) * Number(parsed.args.amount || 10)));
+        const value = Math.max(0, Math.min(100, current + Number(parsed.args.direction) * Number(parsed.args.amount ?? 10)));
         store.setVolume(value); player.setVolume(value);
         return finish({ reason: "volume_set", value });
       }

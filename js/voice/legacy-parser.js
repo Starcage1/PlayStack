@@ -119,8 +119,8 @@ export function parseLegacyCommand(heard, context = {}) {
 
   if (has(tokens, ["volume", "awaaz", "awaz", "आवाज", "आवाज़"])) {
     const number = parseNumber(text);
-    if (has(tokens, ["badhao", "badao", "increase", "up", "बढ़ाओ", "बढाओ", "बढ़ा"])) return command("change_volume", heard, { direction: 1, amount: number || 10 });
-    if (has(tokens, ["kam", "ghatao", "lower", "down", "कम", "घटाओ", "घटा"])) return command("change_volume", heard, { direction: -1, amount: number || 10 });
+    if (has(tokens, ["badhao", "badao", "increase", "up", "बढ़ाओ", "बढाओ", "बढ़ा"])) return command("change_volume", heard, { direction: 1, amount: number ?? 10 });
+    if (has(tokens, ["kam", "ghatao", "lower", "down", "कम", "घटाओ", "घटा"])) return command("change_volume", heard, { direction: -1, amount: number ?? 10 });
     if (number !== null) return command("set_volume", heard, { value: Math.max(0, Math.min(100, number)) });
   }
 

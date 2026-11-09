@@ -127,3 +127,7 @@ The backend, microphone round trip, safe voice commands, draggable mic, typed fa
 
 > Fullscreen work note: fullscreen support was implemented earlier and retained; changes in this pass build on the existing fullscreen toggle rather than replacing it.
 
+
+## Import a public YouTube playlist
+
+Add `YOUTUBE_API_KEY=your_key` to the local `.env` file and restart the Flask server. Restrict that key to **YouTube Data API v3** in Google Cloud; do not commit or share `.env`. The Playlist tab fetches one page of up to 50 public playlist videos per click, uses the existing review/selection/import flow, and caches fetched pages in the running server to avoid repeat requests. Each page costs one YouTube Data API quota unit. Private playlists require OAuth and are not supported.

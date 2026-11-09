@@ -49,3 +49,26 @@ test("unknown phrases are safe and unsupported delete requests are not intents",
   assert.equal(parseCommand("delete this video").intent, "unknown");
   assert.equal(parseCommand("summarize this video").intent, "unknown");
 });
+
+test("recognizes natural player mode and exact or relative volume phrases", () => {
+  const cases = [
+    ["go fullscreen", "fullscreen_mode", { enabled: null }],
+    ["fullscreen band karo", "fullscreen_mode", { enabled: false }],
+    ["theater mode on", "theater_mode", { enabled: true }],
+    ["wide player kholo", "theater_mode", { enabled: true }],
+    ["minimize the player", "minimize_player", {}],
+    ["volume 50%", "set_volume", { value: 50 }],
+    ["set volume to 50", "set_volume", { value: 50 }],
+    ["awaaz 50 karo", "set_volume", { value: 50 }],
+    ["volume fifty karo", "set_volume", { value: 50 }],
+    ["lower the volume by 15%", "change_volume", { direction: -1, amount: 15 }],
+    ["increase volume by 20 points", "change_volume", { direction: 1, amount: 20 }],
+    ["volume 15 points kam karo", "change_volume", { direction: -1, amount: 15 }],
+    ["awaaz 10 badhao", "change_volume", { direction: 1, amount: 10 }]
+  ];
+  for (const [phrase, intent, args] of cases) {
+    const parsed = parseCommand(phrase);
+    assert.equal(parsed.intent, intent, phrase);
+    assert.deepEqual(parsed.args, args, phrase);
+  }
+});

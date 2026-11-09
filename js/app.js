@@ -44,6 +44,8 @@ const playback = { queue: [], index: 0, currentId: "", autoplayPlaylistId: null,
 let toastTimer = 0;
 let searchTimer = 0;
 let pendingVideos = [];
+let youtubePlaylistPageToken = "";
+let youtubePlaylistId = "";
 let importTab = "links";
 let storageWarning = "";
 let youtubeApiReady = false;
@@ -197,13 +199,18 @@ function syncPlayerRoute(route = parseRoute(location.hash)) {
   if (!expanded) watchNavigationPushed = false;
 }
 
-async function togglePlayerFullscreen() {
+async function togglePlayerFullscreen(enabled = null) {
   try {
-    if (document.fullscreenElement) await document.exitFullscreen();
-    else if (playerShell.requestFullscreen) await playerShell.requestFullscreen();
-    else throw new Error("Fullscreen unavailable");
+    if (enabled === false || (enabled === null && document.fullscreenElement)) {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      return { ok: true, enabled: false };
+    }
+    if (document.fullscreenElement) return { ok: true, enabled: true };
+    if (!playerShell.requestFullscreen) throw new Error("Fullscreen unavailable");
+    await playerShell.requestFullscreen();
+    return { ok: true, enabled: true };
   } catch (_) {
-    toast("Fullscreen is not available in this browser.");
+    return { ok: false, enabled: false, reason: "fullscreen_requires_click" };
   }
 }
 function setPlayerMode(mode) {
@@ -459,13 +466,13 @@ function createExtendedVoiceHandlers() {
     },
     sleep_timer_cancel: () => { clearTimeout(sleepTimer.timeout); sleepTimer = { timeout: 0, deadline: 0, minutes: 0 }; return { ok: true, reason: "sleep_timer_cancelled" }; },
     sleep_timer_status: () => ({ ok: true, reason: "sleep_timer_status", remaining: Math.max(0, Math.ceil((sleepTimer.deadline - Date.now()) / 60000)) }),
-    theater_mode: ({ enabled }) => { theaterMode = enabled ?? !theaterMode; document.body.classList.toggle("theater-mode", theaterMode); return { ok: true, reason: "theater_updated", enabled: theaterMode }; },
+    theater_mode: ({ enabled }) => { theaterMode = enabled ?? !theaterMode; document.body.classList.toggle("theater-mode", theaterMode); if (theaterMode) setPlayerMode("expanded"); else if (playerShell.classList.contains("expanded")) setPlayerMode("mini"); return { ok: true, reason: "theater_updated", enabled: theaterMode }; },
     fullscreen_mode: async ({ enabled }) => {
-      if (enabled === false && document.fullscreenElement) await document.exitFullscreen();
-      else if (enabled !== false && !document.fullscreenElement) await playerShell.requestFullscreen?.();
-      return { ok: true, reason: "fullscreen_updated" };
-    },
-    ambient_mode: ({ enabled }) => { ambientMode = enabled ?? !ambientMode; playerShell.classList.toggle("ambient-on", ambientMode); return { ok: true, reason: "ambient_updated", enabled: ambientMode }; },
+      const result = await togglePlayerFullscreen(enabled);
+      if (result.ok) return { ok: true, reason: "fullscreen_updated", enabled: result.enabled };
+      theaterMode = true; document.body.classList.add("theater-mode"); setPlayerMode("expanded");
+      return { ok: true, reason: "fullscreen_fallback_theater" };
+    },    ambient_mode: ({ enabled }) => { ambientMode = enabled ?? !ambientMode; playerShell.classList.toggle("ambient-on", ambientMode); return { ok: true, reason: "ambient_updated", enabled: ambientMode }; },
     minimize_player: () => { setPlayerMode("mini"); return { ok: true, reason: "player_minimized" }; },
     expand_player: () => { setPlayerMode("expanded"); return { ok: true, reason: "player_expanded" }; },
     help: ({ category }) => { commandsState.category = category || ""; commandsState.tab = "voice"; navigate({ name: "commands" }); return { ok: true, reason: "help_opened" }; },
@@ -688,6 +695,33 @@ async function previewVideo() {
   if (playlistId) addMessage.textContent += ` This link also includes playlist ${playlistId}; it is kept with this preview.`;
 }
 
+async function fetchYouTubePlaylistPage(next = false) {
+  const input = document.querySelector("#importPlaylistUrl");
+  const button = document.querySelector(next ? "#fetchNextPlaylistPage" : "#fetchPlaylistVideos");
+  const playlistId = extractPlaylistId(input.value);
+  if (!playlistId) { addMessage.textContent = "Paste a valid YouTube playlist URL first."; input.focus(); return; }
+  if (!next) { youtubePlaylistId = playlistId; youtubePlaylistPageToken = ""; pendingVideos = []; }
+  button.disabled = true; importProgress.hidden = false; importProgressBar.removeAttribute("value"); importProgressText.textContent = "Fetching one page from YouTube…";
+  try {
+    const params = new URLSearchParams({ playlistId });
+    if (next && youtubePlaylistPageToken) params.set("pageToken", youtubePlaylistPageToken);
+    const response = await fetch(`/api/youtube/playlist-items?${params}`);
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Playlist import failed.");
+    const existing = new Set(allVideos().map((video) => video.id));
+    const seen = new Set(pendingVideos.map((video) => video.id));
+    for (const item of result.items || []) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      pendingVideos.push({ ...item, url: `https://www.youtube.com/watch?v=${item.id}`, playlistId, status: existing.has(item.id) ? "Already in library" : "New", selected: !existing.has(item.id), existing: existing.has(item.id), durationSec: null, tags: [] });
+    }
+    youtubePlaylistPageToken = result.nextPageToken || "";
+    renderImportPreview(pendingVideos);
+    document.querySelector("#fetchNextPlaylistPage").hidden = !youtubePlaylistPageToken;
+    addMessage.textContent = `${pendingVideos.length} video${pendingVideos.length === 1 ? "" : "s"} loaded. Each additional page uses one API request.`;
+  } catch (error) { addMessage.textContent = error.message || "Playlist import failed."; }
+  finally { importProgress.hidden = true; button.disabled = false; }
+}
 // Save checked records once and let Undo remove only records created by this batch.
 function saveVideo(event) {
   event.preventDefault();
@@ -754,6 +788,8 @@ document.addEventListener("click", (event) => {
   else if (action === "play-all-playlist") playPlaylist(parseRoute(location.hash).id);
   else if (action === "shuffle-playlist") playPlaylist(parseRoute(location.hash).id, true);
   else if (action === "open-add-video") openAddVideo();
+  else if (action === "fetch-youtube-playlist") fetchYouTubePlaylistPage(false);
+  else if (action === "fetch-next-playlist-page") fetchYouTubePlaylistPage(true);
   else if (action === "import-tab") setImportTab(actionButton.dataset.tab || "links");
   else if (action === "import-playlist") { importPlaylistUrl.value = actionButton.dataset.url || ""; setImportTab("playlist"); }
   else if (action === "import-remove") {
@@ -780,7 +816,7 @@ document.addEventListener("click", (event) => {
   else if (action === "repeat-mode") { repeatMode = repeatMode === "off" ? "all" : repeatMode === "all" ? "one" : "off"; renderWatchQueue(); toast(`Repeat ${repeatMode}.`); }
   else if (action === "shuffle-queue") { playback.queue = shuffle(playback.queue); playback.index = playback.queue.indexOf(playback.currentId); renderWatchQueue(); toast("Queue shuffled."); }
   else if (action === "theater-toggle") { theaterMode = !theaterMode; document.body.classList.toggle("theater-mode", theaterMode); actionButton.setAttribute("aria-pressed", String(theaterMode)); }
-  else if (action === "shuffle-queue") { playback.queue = shuffle(playback.queue); playback.index = playback.queue.indexOf(playback.currentId); renderWatchQueue(); toast("Queue shuffled."); }
+
   else if (action === "theater-toggle") { theaterMode = !theaterMode; document.body.classList.toggle("theater-mode", theaterMode); actionButton.setAttribute("aria-pressed", String(theaterMode)); }
   else if (action === "skip-back") yt.seekTo(Math.max(0, yt.getTime() - 10), true);
   else if (action === "skip-forward") yt.seekTo(Math.min(yt.getDuration(), yt.getTime() + 10), true);
@@ -945,6 +981,8 @@ function initializePlayer() {
     onReady: () => { yt.setVolume(store.getState().settings.volume); updatePlayerControls(); },
     onStateChange: (state) => {
       if (state === (window.YT?.PlayerState?.ENDED ?? 0)) {
+        if (repeatMode === "one") { yt.seekTo(0, true); yt.play(); updatePlayerControls(); return; }
+        if (repeatMode === "all" && playback.queue.length && playback.index >= playback.queue.length - 1) { playback.index = -1; moveQueue(1, true); return; }
         const playlist = playback.autoplayPlaylistId ? store.getPlaylist(playback.autoplayPlaylistId) : null;
         if (playlist?.autoplay && playback.index < playback.queue.length - 1) moveQueue(1, true);
       }
