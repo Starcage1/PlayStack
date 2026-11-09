@@ -47,6 +47,16 @@ export function getState() { return ready ? player.getPlayerState() : -1; }
 export function getTime() { return ready ? player.getCurrentTime() : 0; }
 export function getDuration() { return ready ? player.getDuration() : 0; }
 export function getVideoData() { return ready ? player.getVideoData() : {}; }
+export function setPlaybackRate(rate) { if (ready) player.setPlaybackRate(Number(rate)); }
+export function toggleCaptions() {
+  if (!ready) return false;
+  try {
+    player.loadModule("captions");
+    const track = player.getOption("captions", "track");
+    player.setOption("captions", "track", track ? {} : { languageCode: "en" });
+    return true;
+  } catch (_) { return false; }
+}
 
-export const playerApi = { createPlayer, loadVideo, play, pause, stop, seekTo, setVolume, getState, getTime, getDuration, getVideoData };
+export const playerApi = { createPlayer, loadVideo, play, pause, stop, seekTo, setVolume, getState, getTime, getDuration, getVideoData, setPlaybackRate, toggleCaptions };
 if (typeof window !== "undefined") window.VaultPlayer = playerApi;

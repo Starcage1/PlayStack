@@ -7,11 +7,11 @@ export function extractVideoId(text = "") {
     const host = link.hostname.toLowerCase().replace(/^www\./, "");
     let id = "";
     if (host === "youtu.be") id = link.pathname.split("/").filter(Boolean)[0] || "";
-    if (["youtube.com", "m.youtube.com", "youtube-nocookie.com"].includes(host)) {
+    if (["youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com"].includes(host)) {
       if (link.pathname === "/watch") id = link.searchParams.get("v") || "";
       else {
         const parts = link.pathname.split("/").filter(Boolean);
-        if (["embed", "shorts"].includes(parts[0])) id = parts[1] || "";
+        if (["embed", "shorts", "live"].includes(parts[0])) id = parts[1] || "";
       }
     }
     return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : "";

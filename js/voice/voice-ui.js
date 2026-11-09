@@ -8,16 +8,21 @@ const DEBUG_FIELDS = ["permission", "audioContext", "recording", "wav", "request
 // Add the mic, command help, typed fallback, and optional speech diagnostics.
 export function initVoiceUI({
   getKeyterms = () => [],
+  commands = [],
   handleTranscript = async (heard) => `Maine suna: ${heard}`,
   getVolume = () => 100,
   setPlaybackVolume = () => {}
 } = {}) {
   const dock = document.createElement("section");
   dock.className = "voice-dock";
+  const featuredIds = ["play_random", "play_named", "page_next", "search", "open_commands", "sleep_timer_set", "theater_mode", "library_count"];
+  const featured = featuredIds.map((id) => commands.find((item) => item.id === id)?.examples?.hi?.[0]?.text).filter(Boolean);
+  const helpLines = (featured.length ? featured : ["pause karo", "agla video chalao", "awaaz 40 karo"]).map((line) => `<li>“${escapeHtml(line)}”</li>`).join("");
   dock.innerHTML = `<p class="voice-status" role="status" aria-live="polite" hidden></p>
     <div class="voice-help" hidden>
-      <h2>Voice commands</h2>
-      <p>Try: “agla video chalao”, “awaaz 40 karo”, “is video ko Music mein daalo”, or “playlist kholo Music”.</p>
+      <h2>What can I say?</h2>
+      <ul class="voice-help-examples">${helpLines}</ul>
+      <a href="#/commands" class="voice-help-all">See all commands</a>
       <form class="voice-text-form"><label for="voiceTextCommand">Type a command</label><div><input id="voiceTextCommand" autocomplete="off" placeholder="e.g. pause karo"><button type="submit">Run</button></div></form>
       <button class="voice-debug-toggle secondary" type="button">Show voice diagnostics</button>
     </div>
@@ -293,4 +298,8 @@ function formatMs(value) { return `${(value / 1000).toFixed(1)} s`; }
 function fieldLabel(field) {
   return ({ audioContext: "AudioContext", httpStatus: "HTTP status", rawResponse: "Raw response" })[field]
     || field.replace(/[A-Z]/g, (letter) => ` ${letter}`).replace(/^./, (letter) => letter.toLocaleUpperCase());
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 }

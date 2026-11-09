@@ -178,6 +178,35 @@ body.sidebar-collapsed { --sidebar-w: 72px; }
 .video-preview { display: grid; grid-template-columns: 140px 1fr; gap: 12px; align-items: center; padding: 10px; background: var(--surface-raised); border-radius: 10px; }
 .video-preview img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 7px; }
 .video-preview p { margin: 0; }
+#addVideoDialog { width: min(760px, calc(100% - 24px)); }
+.import-tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--divider); }
+.import-tabs button { min-height: 44px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); background: transparent; }
+.import-tabs button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--text); }
+#addVideoLinks { min-height: 132px; resize: vertical; line-height: 1.5; }
+.import-progress { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+.import-progress progress { flex: 1; accent-color: var(--accent); }
+.import-preview-list { display: grid; gap: 8px; max-height: 300px; overflow: auto; }
+.import-preview-row { display: grid; grid-template-columns: 22px 112px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px; border: 1px solid var(--divider); border-radius: 10px; background: var(--surface); }
+.import-preview-row > input { width: 18px; min-height: 18px; accent-color: var(--accent); }
+.import-thumb { aspect-ratio: 16/9; border-radius: 6px; overflow: hidden; background: var(--surface-raised); }
+.import-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.import-copy { min-width: 0; display: grid; gap: 3px; }
+.import-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 13px; }
+.import-copy span, .import-status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.import-status { color: var(--accent); }
+.import-options { display: grid; gap: 10px; }
+.import-options #addPlaylistChoices { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.import-options #addPlaylistChoices > p { flex-basis: 100%; margin: 0; }
+.import-options #addPlaylistChoices label { display: flex; align-items: center; gap: 6px; }
+.import-options #addPlaylistChoices input { width: 18px; min-height: 18px; accent-color: var(--accent); }
+.bookmarklet-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 12px; }
+.bookmarklet-row a { min-height: 40px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 999px; color: var(--text); background: var(--surface-raised); }
+@media (max-width: 620px) {
+  #addVideoDialog { padding: 16px; }
+  .import-preview-row { grid-template-columns: 20px 84px minmax(0, 1fr) 36px; gap: 7px; }
+  .import-preview-row [data-action="import-playlist"] { grid-column: 3; justify-self: start; }
+  .import-copy strong { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+}
 .search-results-section { margin-top: 28px; }
 .search-results-section h2 { margin: 0 0 10px; font-size: 18px; font-weight: 550; }
 .search-playlist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
@@ -212,9 +241,43 @@ body.has-mini-player:not(.watch-route) .toast-region { bottom: 280px; }
 .voice-help[hidden] { display: none; }
 .voice-help h2 { margin: 0 0 8px; font-size: 16px; }
 .voice-help p { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.voice-help-examples { margin: 0 0 12px; padding-left: 20px; color: var(--muted); line-height: 1.7; font-size: 13px; }
+.voice-help-all { display: inline-flex; align-items: center; min-height: 40px; color: var(--accent); font-weight: 650; }
 .voice-text-form label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; }
 .voice-text-form > div { display: flex; gap: 8px; }
 .voice-text-form input { min-width: 0; min-height: 42px; flex: 1; }
+
+/* Keep the generated command guide readable on narrow and wide screens. */
+.commands-heading { align-items: center; }
+.command-tabs { display: flex; gap: 8px; margin: 18px 0; border-bottom: 1px solid var(--divider); }
+.command-tabs button { min-height: 44px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); background: transparent; }
+.command-tabs button.active { border-bottom-color: var(--accent); color: var(--text); }
+.commands-browser { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 20px; align-items: start; }
+.command-categories { position: sticky; top: 84px; display: grid; gap: 6px; }
+.command-category { min-height: 44px; padding: 9px 12px; text-align: left; border: 1px solid transparent; border-radius: 10px; color: var(--muted); background: transparent; }
+.command-category.active { color: var(--text); border-color: var(--divider); background: var(--surface-raised); }
+.command-results > input { width: 100%; min-height: 46px; margin-bottom: 8px; }
+.command-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+.command-card { min-width: 0; padding: 16px; border: 1px solid var(--divider); border-radius: 14px; background: var(--surface); }
+.command-card-heading { display: grid; gap: 6px; }
+.command-category-label { color: var(--accent); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.command-card h3 { margin: 0; font-size: 16px; }
+.command-card > p { min-height: 40px; color: var(--muted); line-height: 1.45; font-size: 13px; }
+.command-examples { display: grid; gap: 4px; margin: 12px 0; }
+.command-examples p { margin: 0; color: var(--muted); font-size: 12px; }
+.command-examples b { display: inline-block; min-width: 68px; color: var(--text); }
+.keyboard-panel { max-width: 740px; padding: 18px; border: 1px solid var(--divider); border-radius: 14px; background: var(--surface); }
+.shortcut-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.shortcut-list > div { display: flex; align-items: center; gap: 12px; min-height: 42px; color: var(--muted); }
+.shortcut-list kbd { min-width: 86px; padding: 5px 8px; border: 1px solid var(--divider); border-radius: 6px; color: var(--text); background: var(--surface-raised); text-align: center; }
+.theater-mode .player-shell.expanded { left: 32px; right: 32px; width: auto; max-width: none; }
+.player-shell.ambient-on:not(.is-hidden) { box-shadow: 0 14px 46px #000b, 0 0 34px 4px #8065ed55; }
+@media (max-width: 720px) {
+  .commands-browser { grid-template-columns: 1fr; gap: 12px; }
+  .command-categories { position: static; display: flex; overflow-x: auto; padding-bottom: 4px; }
+  .command-category { flex: 0 0 auto; }
+  .shortcut-list { grid-template-columns: 1fr; }
+}
 .voice-debug { width: min(430px, calc(100vw - 32px)); max-height: min(62vh, 620px); overflow: auto; padding: 14px; border: 1px solid #695c98; border-radius: 14px; background: #17151d; box-shadow: 0 10px 30px #000a; }
 .voice-debug[hidden] { display: none; }
 .voice-debug h2 { margin: 0 0 10px; font-size: 15px; }

@@ -9,6 +9,8 @@ test("extracts IDs from supported YouTube links", () => {
   assert.equal(extractVideoId(`https://youtu.be/${id}?t=30`), id);
   assert.equal(extractVideoId(`https://youtube.com/embed/${id}`), id);
   assert.equal(extractVideoId(`https://youtube.com/shorts/${id}`), id);
+  assert.equal(extractVideoId(`https://youtube.com/live/${id}`), id);
+  assert.equal(extractVideoId(`https://music.youtube.com/watch?v=${id}`), id);
   assert.equal(extractVideoId(id), id);
 });
 

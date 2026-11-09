@@ -4,9 +4,14 @@ function decodePart(value) {
 }
 
 export function parseRoute(hash = "") {
-  const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  const [path, queryString = ""] = hash.replace(/^#\/?/, "").split("?", 2);
+  const parts = path.split("/").filter(Boolean);
+  const query = new URLSearchParams(queryString);
+  if (parts[0] === "import") return { name: "import", url: query.get("u") || "" };
   if (parts[0] === "favorites") return { name: "favorites" };
   if (parts[0] === "watch") return { name: "watch" };
+  if (parts[0] === "commands") return { name: "commands" };
+  if (parts[0] === "settings") return { name: "settings" };
   if (parts[0] === "search") return { name: "search", query: decodePart(parts.slice(1).join("/")) };
   if (parts[0] === "playlists") return { name: "playlists" };
   if (parts[0] === "playlist" && parts[1]) return { name: "playlist", id: decodePart(parts[1]) };

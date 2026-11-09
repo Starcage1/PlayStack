@@ -12,7 +12,7 @@ export function matchPlaylistName(spokenName, playlists) {
 export function createVoiceActions(services) {
   const {
     player, store, navigate, getContext, nextVideo, previousVideo, refresh,
-    setPlaylistSort, setPlaylistsSort, openCreatedPlaylist
+    setPlaylistSort, setPlaylistsSort, openCreatedPlaylist, handlers = {}
   } = services;
 
   function needsVideo(context) {
@@ -106,7 +106,9 @@ export function createVoiceActions(services) {
       }
       case "go_home": navigate({ name: "home" }); return { ok: true, reason: "home_opened" };
       case "go_playlists": navigate({ name: "playlists" }); return { ok: true, reason: "playlists_opened" };
-      default: return { ok: false, reason: "unknown" };
+      default: return handlers[parsed.intent]
+        ? await handlers[parsed.intent](parsed.args || {}, context)
+        : { ok: false, reason: "unknown" };
     }
   }
 
