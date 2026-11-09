@@ -134,6 +134,14 @@ export class Store {
     return true;
   }
 
+  reorderPlaylist(id, orderedIds) {
+    const playlist = this.state.playlists.find((item) => String(item.id) === String(id));
+    if (!playlist) return false;
+    const allowed = new Set(playlist.videoIds);
+    const next = [...new Set(orderedIds)].filter((videoId) => allowed.has(videoId));
+    for (const videoId of playlist.videoIds) if (!next.includes(videoId)) next.push(videoId);
+    playlist.videoIds = next; this._save(); return true;
+  }
   addToPlaylist(playlistId, videoId) {
     const playlist = this.state.playlists.find((item) => String(item.id) === String(playlistId));
     if (!playlist || !this.state.videos[videoId] || playlist.videoIds.includes(videoId)) return false;

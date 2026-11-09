@@ -61,6 +61,8 @@ let watchLibraryOrder = [];
 let voiceUI = null;
 let sleepTimer = { timeout: 0, deadline: 0, minutes: 0 };
 let theaterMode = false;
+let repeatMode = "off";
+let shuffleEnabled = false;
 let ambientMode = true;
 let volumeBeforeMute = 100;
 playerShell.classList.add("ambient-on");
@@ -264,7 +266,7 @@ function renderWatchQueue() {
   const heading = queued ? (playlist?.name || "Up next") : "From your library";
   const toggle = queued && playlist ? `<label><input id="watchAutoplay" type="checkbox" ${playlist.autoplay ? "checked" : ""}> Autoplay Seq</label>` : "";
   const rows = videos.map((video) => `<button class="queue-row ${video.id === playback.currentId ? "current" : ""}" data-action="watch-queue-video" data-id="${escapeHtml(video.id)}"><img loading="lazy" src="https://i.ytimg.com/vi/${encodeURIComponent(video.id)}/hqdefault.jpg" alt=""><span>${escapeHtml(video.title)}<small>${escapeHtml(video.author || "YouTube")}${video.id === playback.currentId ? " · Playing" : ""}</small></span></button>`).join("");
-  panel.innerHTML = `<div class="queue-heading"><h2>${escapeHtml(heading)}</h2>${toggle}</div><div class="queue-list">${rows || `<p class="muted">No other saved videos yet.</p>`}</div>`;
+  panel.innerHTML = `<div class="queue-heading"><h2>${escapeHtml(heading)}</h2><div class="queue-controls"><button data-action="shuffle-queue" aria-label="Shuffle queue">Shuffle</button><button data-action="repeat-mode" aria-label="Change repeat mode">Repeat: ${repeatMode}</button>${toggle}</div></div><div class="queue-list">${rows || `<p class="muted">No other saved videos yet.</p>`}</div>`;
 }
 
 function playQueueItem(id) {
@@ -708,6 +710,21 @@ function saveVideo(event) {
 }
 
 // Handle clicks through data-action so screen content can be replaced freely.
+document.addEventListener("dragstart", (event) => {
+  const row = event.target.closest(".playlist-video-row[draggable='true']");
+  if (!row || parseRoute(location.hash).name !== "playlist" || detailState.sort !== "manual" || detailState.query || detailState.filter) return;
+  event.dataTransfer.setData("text/plain", row.dataset.videoId); event.dataTransfer.effectAllowed = "move";
+});
+document.addEventListener("dragover", (event) => { if (event.target.closest(".playlist-video-row[draggable='true']")) event.preventDefault(); });
+document.addEventListener("drop", (event) => {
+  const target = event.target.closest(".playlist-video-row[draggable='true']");
+  if (!target) return;
+  const route = parseRoute(location.hash); if (route.name !== "playlist" || detailState.sort !== "manual" || detailState.query || detailState.filter) return;
+  event.preventDefault(); const from = event.dataTransfer.getData("text/plain"); const to = target.dataset.videoId;
+  const list = store.getPlaylist(route.id)?.videoIds || []; const a = list.indexOf(from), b = list.indexOf(to);
+  if (a < 0 || b < 0 || a === b) return;
+  list.splice(a, 1); list.splice(b, 0, from); store.reorderPlaylist(route.id, list); render();
+});
 document.addEventListener("click", (event) => {
   const actionButton = event.target.closest("[data-action]");
   const videoCardElement = event.target.closest("[data-video-id]");
@@ -760,6 +777,14 @@ document.addEventListener("click", (event) => {
   else if (action === "close-dialog") actionButton.closest("dialog")?.close();
   else if (action === "expand-player") setPlayerMode("expanded");
   else if (action === "fullscreen-player") togglePlayerFullscreen();
+  else if (action === "repeat-mode") { repeatMode = repeatMode === "off" ? "all" : repeatMode === "all" ? "one" : "off"; renderWatchQueue(); toast(`Repeat ${repeatMode}.`); }
+  else if (action === "shuffle-queue") { playback.queue = shuffle(playback.queue); playback.index = playback.queue.indexOf(playback.currentId); renderWatchQueue(); toast("Queue shuffled."); }
+  else if (action === "theater-toggle") { theaterMode = !theaterMode; document.body.classList.toggle("theater-mode", theaterMode); actionButton.setAttribute("aria-pressed", String(theaterMode)); }
+  else if (action === "shuffle-queue") { playback.queue = shuffle(playback.queue); playback.index = playback.queue.indexOf(playback.currentId); renderWatchQueue(); toast("Queue shuffled."); }
+  else if (action === "theater-toggle") { theaterMode = !theaterMode; document.body.classList.toggle("theater-mode", theaterMode); actionButton.setAttribute("aria-pressed", String(theaterMode)); }
+  else if (action === "skip-back") yt.seekTo(Math.max(0, yt.getTime() - 10), true);
+  else if (action === "skip-forward") yt.seekTo(Math.min(yt.getDuration(), yt.getTime() + 10), true);
+  else if (action === "toggle-captions") { const ok = yt.toggleCaptions(); if (!ok) toast("Captions are unavailable for this video."); else actionButton.setAttribute("aria-pressed", actionButton.getAttribute("aria-pressed") !== "true"); }
   else if (action === "minimize-player") setPlayerMode("mini");
   else if (action === "close-player") { yt.stop(); playerShell.classList.add("is-hidden"); document.body.classList.remove("has-mini-player"); playback.currentId = ""; playback.queue = []; }
   else if (action === "toggle-playback") { if (yt.getState() === (window.YT?.PlayerState?.PLAYING ?? 1)) yt.pause(); else yt.play(); }
@@ -878,6 +903,7 @@ document.addEventListener("change", (event) => {
     const item = pendingVideos.find((video) => video.id === event.target.dataset.importId);
     if (item) item.selected = event.target.checked;
   }
+  if (event.target.id === "playbackSpeed") yt.setPlaybackRate(Number(event.target.value));
   if (event.target.id === "playlistSort") { playlistState.sort = event.target.value; playlistState.page = 1; render(); }
   if (event.target.id === "playlistFilter") { detailState.filter = event.target.value; detailState.page = 1; render(); }
   if (event.target.id === "playlistVideoSort") { detailState.sort = event.target.value; detailState.page = 1; render(); }
@@ -905,6 +931,7 @@ document.addEventListener("input", (event) => {
     searchTimer = window.setTimeout(() => { render(); const input = document.querySelector("#playlistSearch"); input?.focus(); input?.setSelectionRange(cursor, cursor); }, 150);
   }
 });
+
 document.addEventListener("click", (event) => {
   const card = event.target.closest("[data-playlist-open]");
   if (card && !event.target.closest("[data-action]") && !event.target.closest("details")) navigate({ name: "playlist", id: card.dataset.playlistOpen });
@@ -987,6 +1014,7 @@ document.addEventListener("keydown", (event) => {
     else { store.setVolume(volumeBeforeMute || 100); yt.setVolume(volumeBeforeMute || 100); }
     document.querySelector("#playerVolume").value = String(store.getState().settings.volume);
   }
+
   if (!typing && !hasDialog && playerVisible && key === "f") { event.preventDefault(); if (document.fullscreenElement) document.exitFullscreen?.(); else playerShell.requestFullscreen?.().catch(() => toast("Fullscreen is not available in this browser.")); }
   if (!typing && !hasDialog && playerVisible && key === "t") { theaterMode = !theaterMode; document.body.classList.toggle("theater-mode", theaterMode); }
   if (!typing && !hasDialog && playerVisible && key === "i") setPlayerMode("mini");

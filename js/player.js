@@ -12,7 +12,9 @@ export function createPlayer(targetId, listeners = {}) {
     width: "100%", height: "100%",
     playerVars: { controls: 0, rel: 0, playsinline: 1, modestbranding: 1, enablejsapi: 1, origin: window.location.origin },
     events: {
-      onReady: () => {
+      onReady: (event) => {
+        const frame = event.target.getIframe?.();
+        if (frame) { frame.allowFullscreen = true; frame.setAttribute("allow", "autoplay; encrypted-media; picture-in-picture; fullscreen"); }
         ready = true;
         if (pending) loadVideo(pending.id, pending.autoplay);
         callbacks.onReady?.();
@@ -45,6 +47,7 @@ export function seekTo(seconds, allowSeekAhead = true) { if (ready) player.seekT
 export function setVolume(value) { if (ready) player.setVolume(Math.max(0, Math.min(100, Number(value)))); }
 export function getState() { return ready ? player.getPlayerState() : -1; }
 export function getTime() { return ready ? player.getCurrentTime() : 0; }
+export function getVolume() { return ready ? player.getVolume() : 100; }
 export function getDuration() { return ready ? player.getDuration() : 0; }
 export function getVideoData() { return ready ? player.getVideoData() : {}; }
 export function setPlaybackRate(rate) { if (ready) player.setPlaybackRate(Number(rate)); }
@@ -58,5 +61,5 @@ export function toggleCaptions() {
   } catch (_) { return false; }
 }
 
-export const playerApi = { createPlayer, loadVideo, play, pause, stop, seekTo, setVolume, getState, getTime, getDuration, getVideoData, setPlaybackRate, toggleCaptions };
+export const playerApi = { createPlayer, loadVideo, play, pause, stop, seekTo, setVolume, getState, getTime, getVolume, getDuration, getVideoData, setPlaybackRate, toggleCaptions };
 if (typeof window !== "undefined") window.VaultPlayer = playerApi;

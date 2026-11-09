@@ -124,3 +124,6 @@ Also check a noisy room, deny microphone access (then use the typed box), discon
 ## Progress
 
 The backend, microphone round trip, safe voice commands, draggable mic, typed fallback, keyboard toggle, and voice help are in place. The project submission draft and manual verification checklist are in `SUBMISSION.md` and this README.
+
+> Fullscreen work note: fullscreen support was implemented earlier and retained; changes in this pass build on the existing fullscreen toggle rather than replacing it.
+

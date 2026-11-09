@@ -15,7 +15,7 @@ export function initVoiceUI({
 } = {}) {
   const dock = document.createElement("section");
   dock.className = "voice-dock";
-  const featuredIds = ["play_random", "play_named", "page_next", "search", "open_commands", "sleep_timer_set", "theater_mode", "library_count"];
+  const featuredIds = ["play_random", "play_named", "search", "open_commands", "sleep_timer_set", "theater_mode", "fullscreen_mode", "playlist_count", "library_count"];
   const featured = featuredIds.map((id) => commands.find((item) => item.id === id)?.examples?.hi?.[0]?.text).filter(Boolean);
   const helpLines = (featured.length ? featured : ["pause karo", "agla video chalao", "awaaz 40 karo"]).map((line) => `<li>“${escapeHtml(line)}”</li>`).join("");
   dock.innerHTML = `<p class="voice-status" role="status" aria-live="polite" hidden></p>
@@ -52,6 +52,7 @@ export function initVoiceUI({
   let recording = false;
   let suppressClick = false;
   let drag = null;
+  let statusTimer = 0;
   let lastRecording = null;
   let attemptStarted = 0;
   let stageTimes = {};
@@ -134,8 +135,11 @@ export function initVoiceUI({
     button.disabled = busy && !recording;
     button.setAttribute("aria-label", recording ? "Stop voice recording" : "Start voice command");
     button.title = recording ? "Stop recording (V)" : "Start voice command (V)";
+    clearTimeout(statusTimer);
     status.hidden = !message;
     status.textContent = message;
+    status.dataset.state = state;
+    if (message && ["idle", "error", "speaking"].includes(state)) statusTimer = window.setTimeout(() => { status.hidden = true; }, 4500);
   }
 
   function reportIntent(parsed) { logDebug("intent", parsed); }

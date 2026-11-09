@@ -10,7 +10,7 @@ export function videoRow(video, number, { inPlaylist = true } = {}) {
   const tags = (video.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
   const hue = [...(video.author || "Video Vault")].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 360, 0);
   const initial = escapeHtml((video.author || "V").trim().charAt(0).toLocaleUpperCase() || "V");
-  return `<article class="playlist-video-row" data-video-id="${escapeHtml(video.id)}" tabindex="0" role="button" aria-label="Play ${escapeHtml(video.title)}">
+  return `<article class="playlist-video-row" draggable="true" data-video-id="${escapeHtml(video.id)}" tabindex="0" role="button" aria-label="Play ${escapeHtml(video.title)}">
     <span class="row-number">${number}</span>
     <div class="row-thumb thumb-frame"><div class="thumb-skeleton" aria-hidden="true"></div><img class="thumb-image" loading="lazy" src="https://i.ytimg.com/vi/${encodeURIComponent(video.id)}/hqdefault.jpg" alt="">${duration}</div>
     <div class="row-copy"><h3>${escapeHtml(video.title)}</h3><div class="row-channel"><span class="channel-avatar small-avatar" style="--avatar-hue:${hue}" aria-hidden="true">${initial}</span><span>${escapeHtml(video.author || "YouTube")}</span></div><p>Added ${timeAgo(video.addedAt)}</p><div class="tag-list">${tags}</div></div>
@@ -35,7 +35,7 @@ export function renderPlaylistDetail(playlist, videos, state = {}) {
   return `<div class="playlist-detail-layout">
     <aside class="playlist-summary">${cover}<button class="playlist-title-button" data-action="rename-current-playlist" aria-label="Rename playlist">${escapeHtml(playlist.name)} <span aria-hidden="true">✎</span></button>
       <p class="muted">${playlist.videoIds.length} ${playlist.videoIds.length === 1 ? "video" : "videos"}</p>
-      <div class="summary-actions"><button data-action="play-all-playlist" ${visible.length ? "" : "disabled"}>Play all</button><button class="secondary" data-action="shuffle-playlist" ${visible.length ? "" : "disabled"}>Shuffle</button></div>
+      <div class="summary-actions"><button data-action="repeat-mode">Repeat: off</button><button data-action="play-all-playlist" ${visible.length ? "" : "disabled"}>Play all</button><button class="secondary" data-action="shuffle-playlist" ${visible.length ? "" : "disabled"}>Shuffle</button></div>
       <label class="toggle-label"><input id="autoplayToggle" type="checkbox" ${playlist.autoplay ? "checked" : ""}> Autoplay Seq</label>
       <button class="summary-delete" data-action="delete-playlist" data-id="${escapeHtml(playlist.id)}">Delete playlist</button>
     </aside>

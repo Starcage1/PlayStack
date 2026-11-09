@@ -393,3 +393,9 @@ body.has-mini-player:not(.watch-route) .toast-region { bottom: 280px; }
   .row-copy > p { font-size: 11px; }
   .row-actions { flex-direction: column; }
 }
+
+.voice-status[data-state='thinking']::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; vertical-align: -1px; animation: voice-spin .8s linear infinite; }
+.voice-status[data-state='listening'] { border-color: var(--accent); }
+@keyframes voice-spin { to { transform: rotate(360deg); } }
+.queue-controls { display: flex; gap: 6px; align-items: center; }
+
