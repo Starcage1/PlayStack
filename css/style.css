@@ -351,14 +351,13 @@ body.has-mini-player:not(.watch-route) .toast-region { bottom: 280px; }
   .main-content { margin-left: 0; padding: calc(var(--topbar-h) + 20px) 16px 70px; }
   body.has-mini-player .main-content { padding-bottom: 320px; }
   body.has-mini-player:not(.watch-route) .toast-region { bottom: 338px; }
-  body.has-mini-player:not(.watch-route) .voice-dock { bottom: 340px; }
+  body.has-mini-player .voice-dock { bottom: 340px; }
   .player-shell.mini { left: 0; right: 0; bottom: 0; width: 100%; border-radius: 12px 12px 0 0; }
   .player-shell.mini .player-viewport { height: max(200px, 56.25vw); }
   .player-shell.expanded { inset: var(--topbar-h) 0 0; border-radius: 0; }
   .video-grid { grid-template-columns: 1fr; }
   .playlist-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-body.watch-route .voice-dock { display: none; }
 @media (max-width: 620px) { .screen-heading { align-items: flex-start; } .topbar-add { padding-inline: 12px; } }
 @media (hover: none) { .video-menu { opacity: 1; } }
 @media (max-width: 899px) {

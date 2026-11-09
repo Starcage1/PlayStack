@@ -986,7 +986,7 @@ document.addEventListener("keydown", (event) => {
   if (!typing && !hasDialog && playerVisible && /^[0-9]$/.test(event.key)) yt.seekTo(yt.getDuration() * Number(event.key) / 10, true);
   if (event.key === "/" && !typing && !hasDialog) { event.preventDefault(); if (window.innerWidth < 800) document.body.classList.add("mobile-search-open"); globalSearchInput.focus(); }
   if (event.key === "?" && !typing && !hasDialog) { event.preventDefault(); commandsState.tab = "voice"; navigate({ name: "commands" }); }
-  if (key === "v" && !typing && !hasDialog && !document.body.classList.contains("watch-route")) {
+  if (key === "v" && !typing && !hasDialog) {
     event.preventDefault();
     voiceUI?.start();
   }
