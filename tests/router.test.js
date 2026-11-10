@@ -7,6 +7,8 @@ test("hash routes resolve home, playlist grid, and playlist details", () => {
   assert.deepEqual(parseRoute("#/favorites"), { name: "favorites" });
   assert.deepEqual(parseRoute("#/playlists"), { name: "playlists" });
   assert.deepEqual(parseRoute("#/watch"), { name: "watch" });
+  assert.deepEqual(parseRoute("#/settings"), { name: "settings" });
+  assert.deepEqual(parseRoute("#/about"), { name: "about" });
   assert.deepEqual(parseRoute("#/import?u=https%3A%2F%2Fyoutu.be%2FAbC_1234567"), { name: "import", url: "https://youtu.be/AbC_1234567" });
   assert.deepEqual(parseRoute("#/playlist/p-123"), { name: "playlist", id: "p-123" });
   assert.deepEqual(parseRoute("#/search/dragon%20ball%20%2F%20music"), { name: "search", query: "dragon ball / music" });

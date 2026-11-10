@@ -1,133 +1,90 @@
 # Video Vault
 
-Video Vault is a personal library for videos you choose and playlists you curate. The interface uses an original stacked-card mark and hand-drawn inline SVG icons. Video Vault is not affiliated with YouTube; playback uses YouTube's embedded player.
+Video Vault is a local-first web app for keeping YouTube videos you choose, arranging them into personal playlists, and controlling playback with buttons or Hinglish/English voice commands. It does not provide recommendations, accounts, comments, downloads, or a social feed. Playback stays inside YouTube's official embedded player.
 
-## Run locally
+## Run on Windows
 
-Python 3.10 or newer is recommended. From this folder:
+Install Python 3.10 or newer and Node.js (only needed to run the tests). In PowerShell, from this folder:
 
 ```powershell
-python -m venv .venv
+py -3 -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Open `.env` in a text editor and add your Gnani key to `GNANI_API_KEY`. Keep `.env` private; Git ignores it. Then start the app:
+Open `.env` in a text editor. Add `GNANI_API_KEY` for real voice recognition and spoken replies. Add `YOUTUBE_API_KEY` only if you want to import YouTube playlists. Both keys remain on the local server. The keys are optional for browsing, saving individual video links, and embedded playback.
+
+Start the app:
 
 ```powershell
 python server.py
 ```
 
-Open <http://127.0.0.1:8000/>. The Python server hosts both the static app and its same-origin API endpoints. Keep the terminal open. YouTube playback and Gnani services need internet access.
+Open <http://127.0.0.1:8000/> in a browser. Keep the terminal window open while using the app. Do not open `index.html` as a file and do not use `python -m http.server`: voice and playlist-import requests need the Flask server. If port 8000 is already in use, run `python server.py --port 8001` and open <http://127.0.0.1:8001/>.
 
-If another local server already owns port 8000, start Flask on another port with `python server.py --port 8001` and open <http://127.0.0.1:8001/> instead. The web page and `/api/stt` must come from the same Flask server; `python -m http.server` cannot handle the voice POST requests.
+## Test the mobile layout
 
-## Verify your Gnani key first
+The easiest check needs no phone or extra setup:
 
-With the key saved in `.env`, run:
+1. Run the Flask server and open the local address above in Chrome or Edge.
+2. Open Developer Tools with **F12**, then turn on the device toolbar with **Ctrl+Shift+M**.
+3. Choose a phone preset or enter **390 × 844**. Reload once at that width.
+4. Check the sidebar drawer, search, video cards, import dialog, playlist screens, mic button, and docked mini-player. Try opening and closing the sidebar and player while scrolling to the bottom of a long list.
+5. Change the preview to **1280 × 800** to check the desktop layout. Switch the device toolbar off when done.
+
+The voice button needs microphone permission and a working Gnani key for real recognition. YouTube playback and some embed permissions depend on the selected video and browser. Those external services may not work in automated or offline checks.
+
+## What works
+
+- Save individual YouTube videos in batches from pasted links, copied text, supported bookmark files, and Google Takeout CSVs. Previews use YouTube oEmbed when available; a failed lookup can still be saved as “Untitled video.”
+- Import public YouTube playlist pages in batches of up to 50 items when `YOUTUBE_API_KEY` is set. Use **Load next 50** to continue through a large playlist. Private playlists are not supported.
+- Curate playlists, tags, and favorites; search the library; and use the Commands page to browse voice and keyboard commands.
+- Play videos in YouTube's embedded player, keep the player alive while changing screens, seek, change volume and playback speed, enable captions where the video supports them, and use theater/fullscreen/ambient modes.
+- Use the floating Gnani mic or press **V** to start/stop voice input from any screen when focus is not in a text field and no dialog is open. The typed command box is available from the mic help panel.
+- Data is stored in this browser's `localStorage`. Clearing browser data clears the library. This project does not sync data between browsers or devices.
+
+## Environment keys
+
+Copy `.env.example` to `.env` and keep `.env` private. `.gitignore` excludes it.
+
+- `GNANI_API_KEY` enables Prisma speech recognition and Timbre spoken replies. It is read only by Flask and is never sent to browser JavaScript.
+- `YOUTUBE_API_KEY` enables public playlist-item imports through YouTube Data API v3. Restrict the key to that API in Google Cloud.
+- `MOCK_GNANI=1` enables a local test response and shows a **MOCK MODE** badge. Use `MOCK_GNANI=0` for real requests.
+
+## Voice key check
+
+With a real Gnani key in `.env`, run:
 
 ```powershell
 python check_gnani.py
 ```
 
-The check asks Timbre to synthesize “Namaste, yeh ek test hai” into `test.wav`, then asks Prisma to transcribe that file. It prints the transcript, never the key. It reports common authentication, credit, permission, and rate-limit errors in plain language. Do this before continuing with the microphone and command UI phase.
+This sends a generated greeting to Timbre and the generated audio to Prisma, then prints the transcript and safe diagnostics. To transcribe a WAV file instead (a real request that may use account credits):
 
-To send an existing browser recording directly to STT (a real API request that may use account credits), run `python check_gnani.py --stt-file path\to\recording.wav`. It prints the HTTP status and raw response, without printing the API key.
+```powershell
+python check_gnani.py --stt-file path\to\recording.wav
+```
 
-For local backend work without sending audio to Gnani, set `MOCK_GNANI=1` in `.env` and restart the server. `/api/stt` returns a canned command, `/api/tts` returns a short beep, and the page displays a visible **MOCK MODE** badge. Mock mode is development-only. Set `MOCK_GNANI=0` for real API requests.
+## Tests
 
-## Server endpoints
+The frontend has no build step and no npm dependencies. With Node.js installed, run the pure-logic suite:
 
-- `GET /api/health` returns only whether a key is configured and whether mock mode is on. It never returns the key.
-- `POST /api/stt` accepts multipart `audio_file` and optional JSON-array `keyterms`; it calls Prisma v3.0 using transliterated output and automatic Indic language detection.
-- `POST /api/tts` accepts `{ "text": "..." }`; it calls Timbre v2.5 with Poorvi in `hi-en`, returns WAV audio, and keeps a small in-memory cache of recent phrases.
-
-Gnani calls are serialized in this local server. A 429 is retried once after one second, and requests time out after 15 seconds. Provider failures are converted into short messages without logging request contents or credentials.
-
-The [Gnani API documentation index](https://docs.gnani.ai/llms.txt) links the Prisma v3.0, STT REST, Timbre voice catalog, and TTS REST references. The request settings above follow the API details supplied in this project brief.
-
-## Frontend checks
-
-The app itself has no JavaScript build step or npm dependencies. With Node.js installed, run its pure-logic tests:
-
-```text
+```powershell
 node --test
 ```
 
-## Voice commands
+It checks video and playlist ID parsing, link/file import, import concurrency and deduplication, library persistence and playlist membership, routing, search, pagination/sorting, and voice command parsing/actions/WAV handling.
 
-Open **Commands** in the sidebar, press **?**, or say “help” to browse voice examples and keyboard shortcuts. The page is generated from the command registry; use its search, category filters, and **Try it** buttons to run examples through the typed-command path. Current commands cover selecting and finding videos, random playback, search and navigation, player modes, sleep timers, and library information.
+## Local server endpoints
 
-## Importing videos
+- `GET /api/health` reports whether the Gnani key is configured and whether mock mode is active. It never returns the key.
+- `POST /api/stt` accepts a WAV file and optional playlist/tag keyterms, then calls Prisma v3.0.
+- `POST /api/tts` accepts a short reply, then calls Timbre v2.5. Recent audio replies are held in a bounded in-memory cache.
+- `GET /api/youtube/playlist-items` fetches one public playlist page through YouTube Data API v3. Pages are cached in memory while the server runs.
 
-Use **+ Add video** to paste one or many YouTube links or a block of copied text. Review the deduplicated list, select which videos to add, optionally apply tags and playlist membership, then use **Add selected videos**. Public titles and channels are previewed with oEmbed; if that lookup fails, a video can still be selected as **Untitled video**. The File tab reads .txt, .csv, .json, .html, and .md bookmark exports, including Takeout CSV files with a “Video ID” column. Drop a link or supported file onto the window to open the importer. The bookmarklet link can be dragged to the browser bookmarks bar.
+The server does not save microphone recordings or transcripts. Keep this development server bound to `127.0.0.1`; do not expose it to a public network. API availability, embed permissions, and provider account limits remain external dependencies.
 
-Links that also contain a playlist ID expose a **Playlist found** button. It opens the Playlist tab with that URL prefilled for the playlist-import phase; importing playlist contents through YouTube Data API is not included yet.
+## Project map
 
-## Voice slice
-
-The microphone button records up to ten seconds, stops after 1.2 seconds of silence only after speech is detected, resamples the audio to mono 16 kHz PCM WAV, checks the WAV header, and sends it to the local `/api/stt` endpoint. Recognized Hinglish, English, or Devanagari commands are matched against a small safe command list, applied through the app's existing player and storage functions, and answered through `/api/tts`. Unsupported requests are not executed. Run the Python server rather than opening the HTML file directly.
-
-For voice troubleshooting, open `http://127.0.0.1:8000/?voicedebug=1` in a new browser tab. The debug panel shows microphone permission, input level, recording length and peak, WAV header details, the local STT request and response, transcript, parsed intent, and timings. It can play or download the latest recording. The panel and console diagnostics do not include the Gnani key. A saved recording can be checked against STT separately with the command above.
-
-The mic can be dragged and its position is saved in browser storage. Press `V` to start or stop a recording when you are not typing. The “What can I say?” panel also runs typed commands through the same parser and actions, so it remains useful if the mic or network is unavailable. While recording and speaking, the video volume is lowered to 15% of its saved level and restored afterward. The spoken response can fail offline, but the typed command still runs locally.
-
-### Recognition settings comparison
-
-`server.py` currently uses profile A. No real voice samples were supplied for this project, so these profiles have not been compared and no accuracy winner is claimed. The earlier credential check used generated speech; that does not measure recognition of the user's own Hinglish voice.
-
-| Profile | `language_code` | `format` | Result |
-| --- | --- | --- | --- |
-| A (current default) | `indic-auto` | `transliterate` | Not tested with real voice samples |
-| B | `hi-IN,en-IN` | `transliterate` | Not tested with real voice samples |
-| C | `hi-IN,en-IN` | `codemix` | Not tested with real voice samples |
-
-### Voice command checklist
-
-Try each phrase with a video loaded where required. The phrases below are examples; playlist names should match your own collection.
-
-| Action | Hinglish | English |
-| --- | --- | --- |
-| Play or resume | `chalao` | `play the video` |
-| Pause | `roko` | `pause the video` |
-| Next / previous | `agla video chalao` / `pichla video` | `next video` / `previous video` |
-| Volume | `awaaz badhao`, `awaaz kam karo`, `volume fifty karo` | `volume up`, `volume down`, `volume fifty` |
-| Seek | `tees second aage`, `das second peeche` | `30 seconds forward`, `10 seconds backward` |
-| Add current video | `is video ko Music mein daal do` | `add this video to Music` |
-| Tag current video | `tag karo study` | `add tag study` |
-| Create / open playlist | `playlist banao naam rakho Exam Prep`, `Exam Prep playlist kholo` | `create playlist called Exam Prep`, `open playlist Exam Prep` |
-| Sort / favorite | `playlist sort karo by naam`, `favourite karo` | `sort playlist by title`, `favorite this video` |
-
-Also check a noisy room, deny microphone access (then use the typed box), disconnect the network (then use the typed box), name a playlist that does not exist, and try an unsupported request. The app should explain failures, suggest close playlist names, and never delete data by voice.
-
-### Verification status
-
-- `node --test`: 21 tests pass, including 56 command phrases and safe action checks.
-- Python syntax check and local Flask page/API smoke check passed earlier in development.
-- The user reported that the real Gnani credential check succeeded. It was not repeated in this pass to avoid another paid API call.
-- The local browser check confirmed the Help panel and typed “open playlists” command navigate correctly. Real microphone recognition and speech playback were not exercised in this pass; no real voice samples were supplied for profile comparison.
-
-## Main files
-
-- `server.py` serves the app, protects the API key, and proxies the two Gnani calls.
-- `check_gnani.py` performs a real TTS-then-STT credential check.
-- `.env.example` is a safe template; put the actual key only in your ignored `.env` file.
-- `requirements.txt` lists Flask, requests, and python-dotenv.
-- `index.html`, `css/`, and `js/` are the existing web app. `js/environment-badge.js` checks the health endpoint and makes mock mode visible.
-- `js/store.js` manages saved videos and playlists in browser storage.
-- `js/player.js` wraps the embedded video player and keeps its existing public controls.
-- `js/views/` draws the Home, playlist, playlist detail, and search screens.
-- `js/voice/recorder.js` captures and converts a short mic command to WAV; `gnani-client.js` calls the local speech endpoints; `intents.js` parses phrases; `actions.js` runs safe app actions; `responses.js` keeps spoken replies together; and `voice-ui.js` draws the mic, help, and typed fallback.
-- `tests/` covers pure ID parsing, routes, searching, list helpers, and store behavior with in-memory storage.
-
-## Progress
-
-The backend, microphone round trip, safe voice commands, draggable mic, typed fallback, keyboard toggle, and voice help are in place. The project submission draft and manual verification checklist are in `SUBMISSION.md` and this README.
-
-> Fullscreen work note: fullscreen support was implemented earlier and retained; changes in this pass build on the existing fullscreen toggle rather than replacing it.
-
-
-## Import a public YouTube playlist
-
-Add `YOUTUBE_API_KEY=your_key` to the local `.env` file and restart the Flask server. Restrict that key to **YouTube Data API v3** in Google Cloud; do not commit or share `.env`. The Playlist tab fetches one page of up to 50 public playlist videos per click, uses the existing review/selection/import flow, and caches fetched pages in the running server to avoid repeat requests. Each page costs one YouTube Data API quota unit. Private playlists require OAuth and are not supported.
+See [SUBMISSION.md](SUBMISSION.md) for the pitch outline, user flows, architecture, and an explanation of each project file.

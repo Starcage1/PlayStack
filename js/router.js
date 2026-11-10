@@ -12,6 +12,7 @@ export function parseRoute(hash = "") {
   if (parts[0] === "watch") return { name: "watch" };
   if (parts[0] === "commands") return { name: "commands" };
   if (parts[0] === "settings") return { name: "settings" };
+  if (parts[0] === "about") return { name: "about" };
   if (parts[0] === "search") return { name: "search", query: decodePart(parts.slice(1).join("/")) };
   if (parts[0] === "playlists") return { name: "playlists" };
   if (parts[0] === "playlist" && parts[1]) return { name: "playlist", id: decodePart(parts[1]) };

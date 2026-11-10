@@ -121,7 +121,8 @@ function render() {
   else if (route.name === "favorites") content = renderHome({ videos: allVideos().filter((video) => video.favorite), order: homeState.order, filter: homeState.filter, page: homeState.page, title: "Favorites" });
   else if (route.name === "playlists") content = renderPlaylists(store.getPlaylists(), allVideos(), playlistState);
   else if (route.name === "commands") content = renderCommands(COMMANDS, commandsState);
-  else if (route.name === "settings") content = `<section class="screen-heading"><div><h1>Settings</h1><p class="muted">Personalize your player and voice controls.</p></div></section><div class="empty-state"><p>Settings options are being organized.</p></div>`;
+  else if (route.name === "settings") content = renderSettings();
+  else if (route.name === "about") content = renderAbout();
   else if (route.name === "watch") content = playback.currentId ? "" : `<div class="empty-state"><h2>Nothing is playing</h2><p>Choose a video from Home or a playlist.</p><button data-action="nav-home">Go to Home</button></div>`;
   else if (route.name === "search") content = renderSearchPage(allVideos(), store.getPlaylists(), route.query);
   else {
@@ -133,6 +134,7 @@ function render() {
   app.classList.toggle("watch-route", route.name === "watch");
   document.body.classList.toggle("watch-route", route.name === "watch");
   if (route.name === "search") { globalSearchInput.value = route.query; clearGlobalSearch.hidden = !route.query; }
+  if (route.name === "settings") loadSettingsStatus();
   renderSidebar(route);
   if (window.innerWidth < 800) sidebarDrawerOpen = false;
   applySidebarState();
@@ -149,6 +151,42 @@ function render() {
   }
 }
 
+// Show the settings that are currently supported by the app.
+function renderSettings() {
+  return `<section class="screen-heading"><div><h1>Settings</h1><p class="muted">Playback, voice service, and data storage.</p></div></section>
+    <div class="settings-grid">
+      <section class="settings-card"><h2>Playback</h2><label for="settingsVolume">Default volume: <span id="settingsVolumeValue">${store.getState().settings.volume}%</span></label><input id="settingsVolume" type="range" min="0" max="100" value="${store.getState().settings.volume}"><p class="muted">Changing this also updates the current player and saves the value in this browser.</p></section>
+      <section class="settings-card"><h2>Gnani voice</h2><p id="gnaniStatus" class="muted" role="status">Checking the local voice service…</p><a class="secondary settings-link" href="#/commands">Browse voice commands</a><p class="muted">Voice recognition and spoken replies require the local server and a Gnani API key in its private .env file.</p></section>
+      <section class="settings-card"><h2>Your library data</h2><p class="muted">Videos, playlists, tags, and preferences are saved in this browser’s local storage. Clearing browser data removes this library.</p></section>
+    </div>`;
+}
+
+// Explain the service, its external providers, and where local data lives.
+function renderAbout() {
+  return `<section class="screen-heading"><div><h1>About Video Vault</h1><p class="muted">A personal library for videos you choose.</p></div></section>
+    <article class="settings-card about-card"><h2>How it works</h2><p>Video Vault uses YouTube API Services for embedded playback and, when configured, public playlist imports. By using Video Vault, you agree to be bound by the <a class="text-link" href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube Terms of Service</a>. Read the <a class="text-link" href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a>.</p>
+      <h2>Your data</h2><p>Your library is stored in this browser’s local storage. It is not uploaded to a Video Vault account or synced between devices. When you choose voice input, the recording is sent to Gnani for recognition; this app server does not save the recording or transcript. Spoken replies may be cached in server memory while the server is running.</p>
+      <p>Video Vault is an independent project and is not affiliated with YouTube or Google.</p></article>`;
+}
+
+// The health endpoint reports configuration only; it never exposes the key.
+async function loadSettingsStatus() {
+  const status = document.querySelector("#gnaniStatus");
+  if (!status) return;
+  try {
+    const response = await fetch("/api/health", { cache: "no-store" });
+    if (!response.ok) throw new Error("Local service unavailable");
+    const health = await response.json();
+    status.textContent = health.mock
+      ? "Development speech mode is on. Spoken replies are simulated."
+      : health.key_configured
+        ? "A Gnani key is configured on this server. Provider access is checked when you use voice."
+        : "No Gnani key is configured. Add GNANI_API_KEY to the server’s .env file to enable voice.";
+  } catch (_) {
+    status.textContent = "The local speech service is not reachable. Start Video Vault with python server.py.";
+  }
+}
+
 // Render fixed navigation separately from the routed page content.
 function renderSidebar(route) {
   const playlists = store.getPlaylists();
@@ -160,6 +198,7 @@ function renderSidebar(route) {
       <button class="sidebar-link ${route.name === "favorites" ? "active" : ""}" data-action="nav-favorites">${icon("favorite")}<span>Favorites</span></button>
       <button class="sidebar-link ${route.name === "commands" ? "active" : ""}" data-action="nav-commands">${icon("commands")}<span>Commands</span></button>
       <button class="sidebar-link ${route.name === "settings" ? "active" : ""}" data-action="nav-settings">${icon("settings")}<span>Settings</span></button>
+      <a class="sidebar-link ${route.name === "about" ? "active" : ""}" href="#/about">${icon("commands")}<span>About &amp; privacy</span></a>
     </div><div class="sidebar-section"><div class="sidebar-title">Your playlists</div>${playlistItems}
       ${playlists.length > 7 ? `<button class="sidebar-link sidebar-show-more" data-action="sidebar-show-more">${sidebarShowAll ? "Show less" : "Show more"}</button>` : ""}
       <button class="sidebar-link" data-action="new-playlist">${icon("plus")}<span>New playlist</span></button>
@@ -816,8 +855,6 @@ document.addEventListener("click", (event) => {
   else if (action === "repeat-mode") { repeatMode = repeatMode === "off" ? "all" : repeatMode === "all" ? "one" : "off"; renderWatchQueue(); toast(`Repeat ${repeatMode}.`); }
   else if (action === "shuffle-queue") { playback.queue = shuffle(playback.queue); playback.index = playback.queue.indexOf(playback.currentId); renderWatchQueue(); toast("Queue shuffled."); }
   else if (action === "theater-toggle") { theaterMode = !theaterMode; document.body.classList.toggle("theater-mode", theaterMode); actionButton.setAttribute("aria-pressed", String(theaterMode)); }
-
-  else if (action === "theater-toggle") { theaterMode = !theaterMode; document.body.classList.toggle("theater-mode", theaterMode); actionButton.setAttribute("aria-pressed", String(theaterMode)); }
   else if (action === "skip-back") yt.seekTo(Math.max(0, yt.getTime() - 10), true);
   else if (action === "skip-forward") yt.seekTo(Math.min(yt.getDuration(), yt.getTime() + 10), true);
   else if (action === "toggle-captions") { const ok = yt.toggleCaptions(); if (!ok) toast("Captions are unavailable for this video."); else actionButton.setAttribute("aria-pressed", actionButton.getAttribute("aria-pressed") !== "true"); }
@@ -954,6 +991,12 @@ document.addEventListener("change", (event) => {
   }
 });
 document.addEventListener("input", (event) => {
+  if (event.target.id === "settingsVolume") {
+    store.setVolume(event.target.value);
+    yt.setVolume(event.target.value);
+    document.querySelector("#settingsVolumeValue").textContent = `${event.target.value}%`;
+    document.querySelector("#playerVolume").value = event.target.value;
+  }
   if (event.target.id === "commandSearch") {
     commandsState.query = event.target.value;
     clearTimeout(searchTimer);

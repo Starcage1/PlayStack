@@ -69,7 +69,7 @@ export function initVoiceUI({
     const node = dock.querySelector(`[data-debug="${field}"]`);
     const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
     if (node) node.textContent = text || "—";
-    console.info(`[Video Vault voice] ${field}:`, value);
+    if (!debugPanel.hidden) console.info(`[Video Vault voice] ${field}:`, value);
   }
 
   function setDebugVisible(visible) {
